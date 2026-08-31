@@ -1,0 +1,44 @@
+{
+  "name": "22-Refund-Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 8
+            }
+          ]
+        }
+      },
+      "name": "Every 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/marketplace/refunds",
+        "options": {}
+      },
+      "name": "Check Pending Refunds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    }
+  ],
+  "connections": {
+    "Every 8h": {
+      "main": [
+        [
+          {
+            "node": "Check Pending Refunds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

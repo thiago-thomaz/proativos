@@ -1,0 +1,44 @@
+{
+  "name": "17-Low-Credit-Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "name": "Schedule 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/billing/subscription",
+        "options": {}
+      },
+      "name": "Check Credits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    }
+  ],
+  "connections": {
+    "Schedule 6h": {
+      "main": [
+        [
+          {
+            "node": "Check Credits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,5 @@
+# N8N ENVIRONMENT CONFIGURATION
+PLE_API_BASE_URL="http://localhost:3000/api/v1"
+PLE_API_KEY="ple_live_placeholder_key"
+PLE_HMAC_SECRET="ple_placeholder_hmac_secret"
+GENERIC_TIMEZONE="America/Sao_Paulo"

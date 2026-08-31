@@ -1,0 +1,44 @@
+{
+  "name": "24-Notification-Dispatcher",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "name": "Every 10 Min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/notifications",
+        "options": {}
+      },
+      "name": "Process Notifications",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    }
+  ],
+  "connections": {
+    "Every 10 Min": {
+      "main": [
+        [
+          {
+            "node": "Process Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

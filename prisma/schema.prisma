@@ -1,0 +1,1047 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// MULTI-TENANCY & USERS
+// -------------------------------------------------------------
+
+model Organization {
+  id                    String                 @id @default(cuid())
+  name                  String
+  slug                  String                 @unique
+  plan                  String                 @default("STARTER") // FREE, STARTER, PRO, ENTERPRISE
+  active                Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  users                 User[]
+  campaigns             Campaign[]
+  leads                 Lead[]
+  templates             Template[]
+  integrations          Integration[]
+  creditAccount         CreditAccount?
+  auditLogs             AuditLog[]
+  suppressionList       SuppressionList[]
+  webhookEndpoints      WebhookEndpoint[]
+  inboundMessages       InboundMessage[]
+  apiKeys               ApiKey[]
+  deadLetterMessages    DeadLetterMessage[]
+  discoveryCheckpoints  DiscoveryCheckpoint[]
+  n8nExecutionAudits    N8nExecutionAudit[]
+  opportunityScores     OpportunityScore[]
+  
+  // Phase 7 Relations
+  subscription          OrganizationSubscription?
+  deals                 Deal[]
+  leadRoutingRules      LeadRoutingRule[]
+  revenueAttributions   RevenueAttribution[]
+  abExperiments         AbExperiment[]
+  leadOwnerships        LeadOwnership[]
+  refundRequests        RefundRequest[]
+  meetings              Meeting[]
+  notifications         Notification[]
+  customerWebhookConfigs CustomerWebhookConfig[]
+}
+
+model User {
+  id              String         @id @default(cuid())
+  organizationId  String
+  name            String
+  email           String         @unique
+  passwordHash    String
+  role            String         @default("OPERATOR") // SUPER_ADMIN, OWNER, ADMIN, OPERATOR
+  team            String?        // Ex: "Vendas SP", "Enterprise", "Outbound"
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadsAssigned   Lead[]         @relation("LeadOwner")
+  dealsAssigned   Deal[]         @relation("DealOwner")
+  meetings        Meeting[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@index([organizationId])
+  @@index([team])
+}
+
+model ApiKey {
+  id              String       @id @default(cuid())
+  organizationId  String
+  name            String
+  keyPrefix       String       // Ex: "ple_live_..." ou "ple_pub_..."
+  hashedKey       String       @unique
+  secretHash      String?      // Para assinatura HMAC
+  permissions     String       @default("DISCOVERY,ENRICHMENT,OUTREACH,INBOUND,READ_LEADS,WRITE_LEADS,READ_OPPORTUNITIES") // Scopes CSV
+  rateLimitPerMin Int          @default(60)
+  rateLimitPerDay Int          @default(10000)
+  isPublic        Boolean      @default(false)
+  active          Boolean      @default(true)
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([keyPrefix])
+}
+
+// -------------------------------------------------------------
+// SAAS BILLING & SUBSCRIPTIONS (FASE 7)
+// -------------------------------------------------------------
+
+model SubscriptionPlan {
+  id               String                    @id @default(cuid())
+  name             String                    // "Free", "Starter", "Pro", "Enterprise"
+  slug             String                    @unique // "free", "starter", "pro", "enterprise"
+  priceMonthly     Float                     @default(0.0)
+  priceAnnual      Float                     @default(0.0)
+  monthlyCredits   Int                       @default(100)
+  maxCampaigns     Int                       @default(1)
+  maxUsers         Int                       @default(1)
+  features         String                    // JSON array de features
+  active           Boolean                   @default(true)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  subscriptions    OrganizationSubscription[]
+}
+
+model OrganizationSubscription {
+  id                 String           @id @default(cuid())
+  organizationId     String           @unique
+  planId             String
+  status             String           @default("ACTIVE") // ACTIVE, TRIALING, PAST_DUE, CANCELLED
+  currentPeriodStart DateTime         @default(now())
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan               SubscriptionPlan @relation(fields: [planId], references: [id])
+}
+
+// -------------------------------------------------------------
+// DATA INTELLIGENCE: COMPANIES & CONTACTS
+// -------------------------------------------------------------
+
+model Company {
+  id                String          @id @default(cuid())
+  cnpj              String          @unique
+  razaoSocial       String
+  nomeFantasia      String?
+  dataAbertura      DateTime
+  situacao          String          @default("ATIVA")
+  dataSituacao      DateTime?
+  naturezaJuridica  String?
+  porte             String?         // MEI, ME, EPP, DEMAIS
+  capitalSocial     Float?
+  cnaePrincipal     String
+  cnaesSecundarios  String?         // JSON string array
+  endereco          String?
+  numero            String?
+  complemento       String?
+  bairro            String?
+  municipio         String
+  uf                String
+  cep               String?
+  telefone          String?
+  email             String?
+  fonte             String          @default("PUBLIC_DATA")
+  sourceId          String?
+  sourceProvider    String?         @default("RECEITA_FEDERAL")
+  sourceRecordId    String?
+  sourceUpdatedAt   DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  contacts          Contact[]
+  leads             Lead[]
+  events            CompanyEvent[]
+  enrichmentJobs    EnrichmentJob[]
+  opportunityScores OpportunityScore[]
+  deals             Deal[]
+  leadOwnerships    LeadOwnership[]
+
+  @@index([cnpj])
+  @@index([dataAbertura])
+  @@index([cnaePrincipal])
+  @@index([municipio, uf])
+  @@index([situacao])
+  @@index([sourceProvider])
+}
+
+model CompanyEvent {
+  id          String   @id @default(cuid())
+  companyId   String
+  eventType   String   // "COMPANY_CREATED", "STATUS_CHANGED", "CNAE_CHANGED", "ADDRESS_CHANGED", "CAPITAL_CHANGED"
+  oldValue    String?
+  newValue    String?
+  source      String   @default("INGESTION_ENGINE")
+  createdAt   DateTime @default(now())
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model Contact {
+  id                 String       @id @default(cuid())
+  organizationId     String?
+  companyId          String
+  nome               String
+  cargo              String?
+  tipo               String       @default("COMPANY_PHONE") // "COMPANY_PHONE", "COMPANY_EMAIL", "INSTITUTIONAL_CONTACT", "DECISION_MAKER", "UNKNOWN"
+  email              String?
+  telefone           String?
+  whatsapp           String?
+  
+  // Status de Verificação Canônica
+  emailStatus        String       @default("UNKNOWN") // "UNKNOWN", "FORMAT_VALID", "PROVIDER_VERIFIED", "INVALID", "SUPPRESSED"
+  whatsappStatus     String       @default("UNKNOWN") // "UNKNOWN", "LIKELY", "VERIFIED", "INVALID", "SUPPRESSED"
+  phoneStatus        String       @default("UNKNOWN") // "UNKNOWN", "FORMAT_VALID", "PROVIDER_VERIFIED", "INVALID", "SUPPRESSED"
+  
+  // Field-Level Provenance & Lineage
+  confidenceScore    Int          @default(60) // 0 a 100
+  sourceProvider     String       @default("CADASTRO_RECEITA")
+  sourceRecordId     String?
+  nameSource         String?
+  roleSource         String?
+  emailSource        String?
+  phoneSource        String?
+  whatsappSource     String?
+  
+  optOut             Boolean      @default(false)
+  lastEnrichedAt     DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  company            Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([tipo])
+  @@index([whatsappStatus])
+  @@index([emailStatus])
+  @@index([telefone])
+  @@index([email])
+}
+
+model EnrichmentJob {
+  id               String    @id @default(cuid())
+  companyId        String
+  provider         String    // "RECEITA_QSA", "ASSERTIVA", "MOCK_SANDBOX"
+  status           String    @default("RUNNING") // "RUNNING", "COMPLETED", "FAILED", "SIMULATION"
+  fieldsRequested  String    // JSON array: ["DECISOR", "WHATSAPP", "EMAIL"]
+  fieldsFound      String?   // JSON array de campos retornados
+  confidence       Int       @default(0)
+  errorMessage     String?
+  correlationId    String?
+  creditsUsed      Int       @default(0)
+  startedAt        DateTime  @default(now())
+  finishedAt       DateTime?
+
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([status])
+}
+
+// -------------------------------------------------------------
+// DATA INGESTION & DISCOVERY
+// -------------------------------------------------------------
+
+model IngestionJob {
+  id              String           @id @default(cuid())
+  provider        String           // "RECEITA_FEDERAL", "CNPJ_WS", "CSV_IMPORT", "MOCK_SANDBOX"
+  mode            String           // "FULL", "INCREMENTAL", "ON_DEMAND"
+  status          String           @default("RUNNING") // "RUNNING", "COMPLETED", "FAILED", "SIMULATION"
+  recordsRead     Int              @default(0)
+  recordsCreated  Int              @default(0)
+  recordsUpdated  Int              @default(0)
+  recordsSkipped  Int              @default(0)
+  recordsFailed   Int              @default(0)
+  errorMessage    String?
+  checkpoint      String?          // Timestamp ou cursor
+  correlationId   String?
+  startedAt       DateTime         @default(now())
+  finishedAt      DateTime?
+
+  events          IngestionEvent[]
+
+  @@index([provider, status])
+  @@index([startedAt])
+}
+
+model IngestionEvent {
+  id        String       @id @default(cuid())
+  jobId     String
+  type      String       // "BATCH_PROCESSED", "INVALID_RECORD", "DUPLICATE", "ERROR"
+  cnpj      String?
+  detail    String
+  createdAt DateTime     @default(now())
+
+  job       IngestionJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([type])
+}
+
+model DiscoveryCheckpoint {
+  id                 String       @id @default(cuid())
+  organizationId     String?
+  campaignId         String?
+  provider           String       // "RECEITA_FEDERAL", "CNPJ_WS", "MOCK_SANDBOX"
+  cursor             String?      // Token ou cursor de paginação
+  page               Int          @default(1)
+  executionId        String?
+  batchId            String?
+  lastProcessedCnpj  String?
+  status             String       @default("RUNNING") // "RUNNING", "COMPLETED", "PARTIAL", "FAILED"
+  recordsProcessed   Int          @default(0)
+  metadata           String?      // JSON com filtros aplicados
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization       Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([provider, status])
+  @@index([campaignId])
+  @@index([executionId])
+}
+
+model ProviderConfig {
+  id               String    @id @default(cuid())
+  providerName     String    @unique
+  providerType     String    @default("DISCOVERY") // "DISCOVERY", "ENRICHMENT", "EMAIL", "WHATSAPP"
+  healthStatus     String    @default("HEALTHY") // "HEALTHY", "DEGRADED", "DOWN", "DISABLED"
+  lastSyncAt       DateTime?
+  nextSyncAt       DateTime?
+  lastLatencyMs    Int?
+  lastErrorMessage String?
+  costPerOperation Float     @default(0.0)
+  rateLimitPerMin  Int       @default(120)
+  apiKey           String?
+  isEnabled        Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// -------------------------------------------------------------
+// DEAD LETTER QUEUE (DLQ) & N8N AUDIT
+// -------------------------------------------------------------
+
+model DeadLetterMessage {
+  id             String       @id @default(cuid())
+  organizationId String?
+  campaignId     String?
+  queueType      String       // "DISCOVERY", "INGESTION", "ENRICHMENT", "OUTREACH", "INBOUND", "WEBHOOK", "CUSTOMER_WEBHOOK"
+  payload        String       // JSON payload da operação falha
+  errorMessage   String
+  errorStack     String?
+  provider       String?
+  retryCount     Int          @default(0)
+  maxRetries     Int          @default(3)
+  status         String       @default("PENDING") // "PENDING", "RETRYING", "RESOLVED", "IGNORED"
+  executionId    String?
+  correlationId  String?
+  lastTriedAt    DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([queueType, status])
+  @@index([organizationId])
+  @@index([executionId])
+}
+
+model N8nExecutionAudit {
+  id             String       @id @default(cuid())
+  organizationId String?
+  campaignId     String?
+  workflowName   String
+  executionId    String
+  requestId      String?
+  provider       String?
+  operation      String
+  status         String
+  durationMs     Int          @default(0)
+  recordsCount   Int          @default(0)
+  errorMessage   String?
+  metadata       String?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([workflowName, status])
+  @@index([executionId])
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+// -------------------------------------------------------------
+// CAMPAIGNS & ICP CONFIGURATION
+// -------------------------------------------------------------
+
+model Campaign {
+  id                     String          @id @default(cuid())
+  organizationId         String
+  name                   String
+  productName            String
+  productDescription     String?
+  objective              String          @default("NEW_BUSINESS")
+  status                 String          @default("DRAFT") // DRAFT, SIMULATION, LIVE, PAUSED, COMPLETED, ARCHIVED
+  minScore               Int             @default(70)
+  allowedChannels        String          @default("EMAIL")
+  channelStrategy        String          @default("BOTH")
+  channelPriority        String          @default("WHATSAPP_FIRST")
+  approvalMode           String          @default("AUTO")
+  dailyLeadLimit         Int             @default(50)
+  dailyMessageLimit      Int             @default(50)
+  dailyEmailLimit        Int             @default(50)
+  dailyWhatsAppLimit     Int             @default(50)
+  minContactIntervalDays Int             @default(3)
+  sendTimeStart          String          @default("09:00")
+  sendTimeEnd            String          @default("18:00")
+  allowSaturday          Boolean         @default(false)
+  allowSunday            Boolean         @default(false)
+  cadenceConfig          String?
+  
+  productPrice           Float           @default(0.0)
+  pricePeriodicity       String          @default("MONTHLY")
+  estimatedConversionRate Float          @default(0.05)
+  icpFilters             String
+  
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  organization           Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads                  Lead[]
+  templates              Template[]
+  outreachMessages       OutreachMessage[]
+  opportunityScores      OpportunityScore[]
+  deals                  Deal[]
+  abExperiments          AbExperiment[]
+  revenueAttributions    RevenueAttribution[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+// -------------------------------------------------------------
+// LEADS, SCORING & TIMELINE
+// -------------------------------------------------------------
+
+model Lead {
+  id                   String        @id @default(cuid())
+  organizationId       String
+  campaignId           String
+  companyId            String
+  ownerId              String?
+  score                Int           @default(0)
+  contactabilityScore  Int           @default(0)
+  priorityScore        Int           @default(0)
+  readiness            String        @default("NOT_READY")
+  status               String        @default("NEW")
+  qualificationReason  String?
+  currentCadenceStep   Int           @default(0)
+  cadenceStatus        String        @default("NOT_STARTED")
+  reactivationAt       DateTime?
+  reactivationReason   String?
+  firstDetectedAt      DateTime      @default(now())
+  lastUpdatedAt        DateTime      @updatedAt
+  contactedAt          DateTime?
+  respondedAt          DateTime?
+  convertedAt          DateTime?
+
+  organization         Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign             Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner                User?         @relation("LeadOwner", fields: [ownerId], references: [id])
+  events               LeadEvent[]
+  outreachMessages     OutreachMessage[]
+  outreachEvents       OutreachEvent[]
+  inboundMessages      InboundMessage[]
+  opportunityScores    OpportunityScore[]
+  deals                Deal[]
+  leadOwnerships       LeadOwnership[]
+  meetings             Meeting[]
+  revenueAttributions  RevenueAttribution[]
+
+  @@unique([organizationId, campaignId, companyId])
+  @@index([organizationId, status])
+  @@index([campaignId, score])
+  @@index([priorityScore])
+  @@index([readiness])
+  @@index([cadenceStatus])
+  @@index([reactivationAt])
+}
+
+model LeadEvent {
+  id          String       @id @default(cuid())
+  leadId      String
+  type        String
+  description String
+  metadata    String?
+  createdAt   DateTime     @default(now())
+
+  lead        Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+// -------------------------------------------------------------
+// OPPORTUNITY INTELLIGENCE (FASE 6.5)
+// -------------------------------------------------------------
+
+model OpportunityScore {
+  id                   String        @id @default(cuid())
+  organizationId       String
+  companyId            String
+  leadId               String?
+  campaignId           String?
+  icpScore             Int           @default(0)
+  contactabilityScore  Int           @default(0)
+  priorityScore        Int           @default(0)
+  opportunityScore     Int           @default(0)
+  priority             String        @default("MEDIUM")
+  recommendedAction    String        @default("WAIT")
+  reasons              String
+  warnings             String
+  estimatedValue       Float         @default(0.0)
+  estimatedMRR         Float         @default(0.0)
+  estimatedARR         Float         @default(0.0)
+  calculationVersion   String        @default("v1.0")
+  reactivationAt       DateTime?
+  reactivationReason   String?
+  reactivationEligible Boolean       @default(false)
+  calculatedAt         DateTime      @default(now())
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  organization         Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lead                 Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  campaign             Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, opportunityScore])
+  @@index([priority])
+  @@index([recommendedAction])
+  @@index([companyId])
+  @@index([leadId])
+  @@index([campaignId])
+}
+
+// -------------------------------------------------------------
+// CRM PIPELINE & DEALS (FASE 7)
+// -------------------------------------------------------------
+
+model Deal {
+  id               String               @id @default(cuid())
+  organizationId   String
+  leadId           String
+  companyId        String
+  campaignId       String?
+  ownerId          String?
+  title            String
+  stage            String               @default("QUALIFIED") // NEW, QUALIFIED, CONTACTED, RESPONDED, INTERESTED, MEETING, PROPOSAL, NEGOTIATION, WON, LOST
+  expectedValue    Float                @default(0.0)
+  actualValue      Float?
+  probability      Int                  @default(20) // 0 a 100
+  expectedCloseDate DateTime?
+  closeDate        DateTime?
+  lostReason       String?
+  nextAction       String?
+  nextActionAt     DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead             Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  campaign         Campaign?            @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  owner            User?                @relation("DealOwner", fields: [ownerId], references: [id])
+  events           DealEvent[]
+  meetings         Meeting[]
+  attributions     RevenueAttribution[]
+
+  @@index([organizationId, stage])
+  @@index([leadId])
+  @@index([companyId])
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+model DealEvent {
+  id         String   @id @default(cuid())
+  dealId     String
+  eventType  String   // "STAGE_CHANGED", "VALUE_UPDATED", "NOTE_ADDED", "MEETING_LINKED", "DEAL_WON", "DEAL_LOST"
+  fromStage  String?
+  toStage    String?
+  note       String?
+  actorId    String?
+  metadata   String?  // JSON
+  createdAt  DateTime @default(now())
+
+  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId])
+  @@index([eventType])
+}
+
+model LeadRoutingRule {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  priority       Int          @default(1) // Ordem de execução
+  criteria       String       // JSON: { states, cities, cnaes, minScore, portes }
+  targetType     String       @default("USER") // "USER", "TEAM", "ROUND_ROBIN"
+  targetId       String?      // userId ou teamId
+  roundRobinState Int         @default(0)
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, active])
+}
+
+// -------------------------------------------------------------
+// REVENUE ATTRIBUTION & ROI (FASE 7)
+// -------------------------------------------------------------
+
+model RevenueAttribution {
+  id             String       @id @default(cuid())
+  organizationId String
+  dealId         String
+  leadId         String
+  campaignId     String?
+  channel        String       @default("DIRECT") // "EMAIL", "WHATSAPP", "DIRECT", "MARKETPLACE"
+  touchType      String       @default("LAST_TOUCH") // "FIRST_TOUCH", "LAST_TOUCH", "ASSISTED"
+  attributedValue Float       @default(0.0)
+  percentage     Float        @default(100.0) // 0 a 100
+  metadata       String?      // JSON com detalhes de mensagens / eventos
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deal           Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  lead           Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, dealId])
+  @@index([campaignId])
+  @@index([channel])
+}
+
+// -------------------------------------------------------------
+// A/B TESTING & EXPERIMENTATION (FASE 7)
+// -------------------------------------------------------------
+
+model AbExperiment {
+  id               String       @id @default(cuid())
+  organizationId   String
+  campaignId       String
+  name             String
+  type             String       // "MESSAGE_COPY", "SUBJECT_LINE", "CADENCE", "CHANNEL", "SEND_TIME"
+  status           String       @default("DRAFT") // "DRAFT", "RUNNING", "PAUSED", "COMPLETED"
+  winnerVariantId  String?
+  minSampleSize    Int          @default(100)
+  confidenceThreshold Float     @default(0.95)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign         Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  variants         AbVariant[]
+
+  @@index([organizationId, status])
+  @@index([campaignId])
+}
+
+model AbVariant {
+  id                String       @id @default(cuid())
+  experimentId      String
+  name              String       // "Variant A", "Variant B"
+  payload           String       // JSON: { subject, body, channel, cadenceConfig, sendTime }
+  impressions       Int          @default(0)
+  delivered         Int          @default(0)
+  responses         Int          @default(0)
+  positiveResponses Int          @default(0)
+  meetings          Int          @default(0)
+  conversions       Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  experiment        AbExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+// -------------------------------------------------------------
+// OPPORTUNITY MARKETPLACE & EXCLUSIVITY (FASE 7)
+// -------------------------------------------------------------
+
+model MarketplacePackage {
+  id            String          @id @default(cuid())
+  name          String          // "Pack 50 Restaurantes SP"
+  description   String?
+  segment       String          // "Restaurantes", "Clínicas", "Software"
+  ufs           String          // CSV: "SP,RJ"
+  minScore      Int             @default(80)
+  priceCredits  Int             @default(50)
+  quantity      Int             @default(50)
+  exclusive     Boolean         @default(false)
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  ownerships    LeadOwnership[]
+}
+
+model LeadOwnership {
+  id             String              @id @default(cuid())
+  organizationId String
+  companyId      String
+  leadId         String?
+  packageId      String?
+  acquiredAt     DateTime            @default(now())
+  creditsPaid    Int                 @default(1)
+  source         String              @default("MARKETPLACE") // "MARKETPLACE", "DIRECT_INGESTION"
+  exclusive      Boolean             @default(false)
+  status         String              @default("ACTIVE") // "ACTIVE", "EXPIRED", "REFUNDED"
+  expiresAt      DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lead           Lead?               @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  package        MarketplacePackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  refundRequests RefundRequest[]
+
+  @@unique([organizationId, companyId])
+  @@index([organizationId, status])
+  @@index([companyId])
+}
+
+model RefundRequest {
+  id              String         @id @default(cuid())
+  organizationId  String
+  leadOwnershipId String
+  leadId          String?
+  reason          String         // "INEXISTENT_COMPANY", "INVALID_CNPJ", "OPT_OUT_BEFORE_PURCHASE", "INVALID_CONTACT"
+  evidence        String?
+  status          String         @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  reviewerId      String?
+  decisionNote    String?
+  creditsRefunded Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadOwnership   LeadOwnership  @relation(fields: [leadOwnershipId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+}
+
+// -------------------------------------------------------------
+// MEETINGS & CALENDAR (FASE 7)
+// -------------------------------------------------------------
+
+model Meeting {
+  id              String       @id @default(cuid())
+  organizationId  String
+  leadId          String
+  dealId          String?
+  ownerId         String?
+  title           String
+  scheduledAt     DateTime
+  durationMinutes Int          @default(30)
+  status          String       @default("SCHEDULED") // "SCHEDULED", "CONFIRMED", "RESCHEDULED", "CANCELLED", "COMPLETED", "NO_SHOW"
+  meetingLink     String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead            Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal            Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  owner           User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, scheduledAt])
+  @@index([leadId])
+  @@index([status])
+}
+
+// -------------------------------------------------------------
+// SMART NOTIFICATIONS & CUSTOMER WEBHOOKS (FASE 7)
+// -------------------------------------------------------------
+
+model Notification {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String?
+  type           String       // "HIGH_OPPORTUNITY", "MEETING_BOOKED", "PROPOSAL_SENT", "DEAL_WON", "LOW_CREDITS", "SYSTEM_ALERT"
+  title          String
+  message        String
+  link           String?
+  read           Boolean      @default(false)
+  channel        String       @default("IN_APP") // "IN_APP", "EMAIL", "TELEGRAM", "WHATSAPP"
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, read])
+  @@index([userId])
+}
+
+model CustomerWebhookConfig {
+  id               String                    @id @default(cuid())
+  organizationId   String
+  url              String
+  secret           String                    // Para assinatura HMAC-SHA256
+  subscribedEvents String                    // CSV: "lead.created,deal.won,meeting.scheduled"
+  active           Boolean                   @default(true)
+  failureCount     Int                       @default(0)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries       CustomerWebhookDelivery[]
+
+  @@index([organizationId, active])
+}
+
+model CustomerWebhookDelivery {
+  id           String                @id @default(cuid())
+  webhookId    String
+  eventType    String
+  payload      String                // JSON
+  status       String                @default("PENDING") // "SUCCESS", "FAILED", "PENDING"
+  statusCode   Int?
+  latencyMs    Int?
+  attempts     Int                   @default(1)
+  errorMessage String?
+  createdAt    DateTime              @default(now())
+
+  webhook      CustomerWebhookConfig @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, status])
+  @@index([createdAt])
+}
+
+// -------------------------------------------------------------
+// OUTREACH ENGINE & INBOUND
+// -------------------------------------------------------------
+
+model OutreachMessage {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  campaignId         String
+  leadId             String
+  contactId          String?
+  cadenceStep        Int          @default(1)
+  channel            String
+  direction          String       @default("OUTBOUND")
+  status             String       @default("QUEUED")
+  provider           String       @default("MOCK_OUTREACH")
+  providerMessageId  String?
+  subject            String?
+  body               String
+  idempotencyKey     String       @unique
+  creditsUsed        Int          @default(1)
+  errorMessage       String?
+  sentAt             DateTime?
+  deliveredAt        DateTime?
+  openedAt           DateTime?
+  repliedAt          DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  lead               Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign           Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([channel])
+}
+
+model InboundMessage {
+  id                   String       @id @default(cuid())
+  organizationId       String
+  leadId               String?
+  channel              String
+  fromIdentifier       String
+  toIdentifier         String
+  body                 String
+  intentClassification String       @default("UNKNOWN")
+  isHandled            Boolean      @default(false)
+  handledByUserId      String?
+  receivedAt           DateTime     @default(now())
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead                 Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, isHandled])
+  @@index([intentClassification])
+  @@index([leadId])
+}
+
+model OutreachEvent {
+  id          String   @id @default(cuid())
+  leadId      String
+  messageId   String?
+  eventType   String
+  detail      String
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([eventType])
+}
+
+model Template {
+  id              String        @id @default(cuid())
+  organizationId  String
+  campaignId      String?
+  name            String
+  channel         String
+  subject         String?
+  body            String
+  active          Boolean       @default(true)
+  version         Int           @default(1)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign        Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+model SuppressionList {
+  id              String        @id @default(cuid())
+  organizationId  String
+  identifier      String
+  channel         String
+  reason          String?
+  source          String
+  createdAt       DateTime      @default(now())
+
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, identifier, channel])
+  @@index([identifier])
+}
+
+// -------------------------------------------------------------
+// BILLING, CREDITS & AUDIT
+// -------------------------------------------------------------
+
+model CreditAccount {
+  id              String               @id @default(cuid())
+  organizationId  String               @unique
+  balance         Int                  @default(100)
+  reservedBalance Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions    CreditTransaction[]
+  reservations    CreditReservation[]
+}
+
+model CreditReservation {
+  id             String        @id @default(cuid())
+  accountId      String
+  operation      String        // "COMPANY_DISCOVERY", "ENRICHMENT", "EMAIL_SEND", "WHATSAPP_SEND", "MARKETPLACE_BUY"
+  amount         Int
+  status         String        @default("RESERVED") // "RESERVED", "COMMITTED", "REFUNDED"
+  correlationId  String        @unique
+  expiresAt      DateTime
+  metadata       String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  account        CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, status])
+  @@index([correlationId])
+}
+
+model CreditTransaction {
+  id              String           @id @default(cuid())
+  accountId       String
+  amount          Int
+  type            String           // COMPANY_DISCOVERY, ENRICHMENT, EMAIL_SEND, WHATSAPP_SEND, AI_GENERATION, RESERVATION, REFUND, MARKETPLACE_BUY, PLAN_GRANT
+  description     String
+  metadata        String?
+  createdAt       DateTime         @default(now())
+
+  account         CreditAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+}
+
+model Integration {
+  id              String       @id @default(cuid())
+  organizationId  String
+  provider        String
+  credentials     String
+  status          String       @default("ACTIVE")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, provider])
+}
+
+model WebhookEndpoint {
+  id              String       @id @default(cuid())
+  organizationId  String
+  url             String
+  events          String
+  secret          String
+  active          Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id              String       @id @default(cuid())
+  organizationId  String?
+  userId          String?
+  action          String
+  entity          String
+  entityId        String?
+  details         String?
+  ipAddress       String?
+  createdAt       DateTime     @default(now())
+
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}

@@ -1,0 +1,59 @@
+{
+  "name": "PLE - Opportunity Radar",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "node-cron-radar",
+      "name": "Schedule Trigger (A cada 6 Horas)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NEXT_APP_URL }}/api/v1/opportunities/radar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.PLE_API_KEY }}"
+            }
+          ]
+        }
+      },
+      "id": "node-http-radar",
+      "name": "Buscar Oportunidades no Radar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (A cada 6 Horas)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Oportunidades no Radar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "26-Autonomous-Sales-Loop",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "name": "Hourly Loop",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/opportunities/radar",
+        "options": {}
+      },
+      "name": "Trigger Autonomous Sales Cycle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    }
+  ],
+  "connections": {
+    "Hourly Loop": {
+      "main": [
+        [
+          {
+            "node": "Trigger Autonomous Sales Cycle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
