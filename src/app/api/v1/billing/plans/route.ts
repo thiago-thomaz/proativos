@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_PLANS, subscribeOrganizationToPlan, syncSubscriptionPlans } from "@/services/revenue/billing-engine";
+import { getSessionUser } from "@/lib/auth";
+import { subscribeOrganizationToPlan, syncSubscriptionPlans } from "@/services/revenue/billing-engine";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,11 +19,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const org = await prisma.organization.findFirst();
-    if (!org) return NextResponse.json({ error: "Organização não encontrada" }, { status: 404 });
+    const user = await getSessionUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const result = await subscribeOrganizationToPlan(org.id, body.planSlug);
+    const body = await req.json();
+    const { planSlug } = body;
+
+    if (!planSlug) {
+      return NextResponse.json({ error: "planSlug é obrigatório" }, { status: 400 });
+    }
+
+    const result = await subscribeOrganizationToPlan(user.organizationId, planSlug);
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

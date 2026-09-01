@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, ArrowRight, Check, Target, Building2 } from "lucide-react";
+import { Sparkles, ArrowRight, Check, Target, Building2, AlertCircle } from "lucide-react";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 9 questions state
   const [formData, setFormData] = useState({
@@ -21,11 +23,72 @@ export default function OnboardingPage() {
     monthlyVolume: "100 a 300",
   });
 
-  const nextStep = () => {
+  const nextStep = async () => {
     if (step < 9) {
       setStep(step + 1);
     } else {
-      router.push("/dashboard");
+      // Final step: Criar campanha real no banco de dados via API
+      setLoading(true);
+      setError(null);
+      try {
+        const ufs = formData.states.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+        const citiesList = formData.cities.split(",").map(c => c.trim()).filter(Boolean);
+        const portes = formData.companySize.includes("ME") ? ["ME", "EPP"] : ["MEI", "ME", "EPP"];
+        const days = parseInt(formData.recencyDays) || 15;
+        const preset = days <= 3 ? "LAST_3_DAYS" : days <= 7 ? "LAST_7_DAYS" : days <= 15 ? "LAST_15_DAYS" : "LAST_30_DAYS";
+
+        const icpFilters = {
+          version: 2,
+          industry: {
+            terms: [formData.targetClientType, formData.segments],
+            mainCnaes: [],
+            secondaryCnaes: [],
+            acceptSecondaryCnae: true,
+            strictMainCnaeOnly: false,
+          },
+          location: {
+            ufs: ufs.length > 0 ? ufs : ["SP"],
+            cities: citiesList,
+            country: "BR",
+            strictLocation: ufs.length > 0,
+          },
+          companySize: {
+            allowedPortes: portes,
+          },
+          openingDate: {
+            mode: "PRESET",
+            preset,
+          },
+          status: ["ATIVA"],
+          minScore: 70,
+        };
+
+        const res = await fetch("/api/v1/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `Campanha: ${formData.targetClientType} (${formData.states || "BR"})`,
+            productName: formData.whatYouSell,
+            productDescription: `Oferta voltada para ${formData.targetClientType} no segmento de ${formData.segments}.`,
+            minScore: 75,
+            allowedChannels: formData.channel.includes("WhatsApp") ? ["WHATSAPP", "EMAIL"] : ["EMAIL"],
+            status: "SIMULATION",
+            icpFilters,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Erro ao salvar campanha inicial.");
+        }
+
+        router.push("/dashboard");
+        router.refresh();
+      } catch (err: any) {
+        setError(err.message || "Erro ao criar campanha");
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -44,6 +107,13 @@ export default function OnboardingPage() {
           />
         </div>
       </div>
+
+      {error && (
+        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-xs text-rose-300">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Card */}
       <div className="p-8 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl space-y-6">
@@ -200,7 +270,7 @@ export default function OnboardingPage() {
         <div className="flex justify-between items-center pt-4 border-t border-slate-800">
           <button
             type="button"
-            disabled={step === 1}
+            disabled={step === 1 || loading}
             onClick={() => setStep(step - 1)}
             className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white disabled:opacity-30"
           >
@@ -208,10 +278,11 @@ export default function OnboardingPage() {
           </button>
           <button
             type="button"
+            disabled={loading}
             onClick={nextStep}
-            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow transition-all"
+            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow transition-all disabled:opacity-50"
           >
-            {step === 9 ? "Gerar Campanha Sugerida & Entrar" : "Próximo Passo"}
+            {loading ? "Criando Campanha..." : step === 9 ? "Gerar Campanha Sugerida & Entrar" : "Próximo Passo"}
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

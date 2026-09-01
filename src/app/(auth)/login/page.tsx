@@ -3,21 +3,45 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Zap, Lock, Mail, ArrowRight } from "lucide-react";
+import { Zap, Lock, Mail, ArrowRight, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("thiago@acmecorp.com.br");
   const [password, setPassword] = useState("proactive123");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulação de login rápido / Redirecionamento
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const res = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Credenciais inválidas.");
+      }
+
+      // Se houver token, salvar também no localStorage para headers em caso de fallback
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+      }
+
       router.push("/dashboard");
-    }, 400);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message || "Erro ao conectar ao servidor.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -31,6 +55,13 @@ export default function LoginPage() {
           <h1 className="text-xl font-bold text-white tracking-tight">Proactive Lead Engine</h1>
           <p className="text-xs text-slate-400">Inteligência B2B & Prospecção Proativa</p>
         </div>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-xs text-rose-300">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -66,7 +97,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50"
           >
-            {loading ? "Entrando..." : "Acessar Plataforma"}
+            {loading ? "Autenticando..." : "Acessar Plataforma"}
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

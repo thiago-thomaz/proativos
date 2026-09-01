@@ -14,6 +14,18 @@ export function formatCNPJ(cnpj: string): string {
   );
 }
 
+export function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return "-";
+  const clean = phone.replace(/\D/g, "");
+  if (clean.length === 11) {
+    return clean.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+  }
+  if (clean.length === 10) {
+    return clean.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
+  }
+  return phone;
+}
+
 export function cleanCNPJ(cnpj: string): string {
   return cnpj.replace(/\D/g, "");
 }

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const creditAccount = await prisma.creditAccount.findUnique({
+    let creditAccount = await prisma.creditAccount.findUnique({
       where: { organizationId: user.organizationId },
       include: {
         transactions: {
@@ -19,12 +19,27 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    if (!creditAccount) {
+      creditAccount = await prisma.creditAccount.create({
+        data: {
+          organizationId: user.organizationId,
+          balance: 100,
+        },
+        include: { transactions: true },
+      });
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: user.organizationId },
+    });
+
     return NextResponse.json({
       success: true,
-      balance: creditAccount?.balance || 0,
-      transactions: creditAccount?.transactions || [],
+      balance: creditAccount.balance,
+      plan: org?.plan || "STARTER",
+      transactions: creditAccount.transactions,
     });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch credit details", details: String(error) }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

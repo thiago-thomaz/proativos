@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Zap, Lock, Mail, Building, User, ArrowRight } from "lucide-react";
+import { Zap, Lock, Mail, Building, User, ArrowRight, AlertCircle } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -12,14 +12,38 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Redireciona para o onboarding guiado de 9 perguntas
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const res = await fetch("/api/v1/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, orgName, email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao criar conta.");
+      }
+
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+      }
+
+      // Redireciona para o onboarding guiado de configuração de ICP
       router.push("/onboarding");
-    }, 400);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message || "Erro ao conectar ao servidor.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,6 +56,13 @@ export default function RegisterPage() {
           <h1 className="text-xl font-bold text-white tracking-tight">Criar Conta no Proactive Lead Engine</h1>
           <p className="text-xs text-slate-400">Transforme novas empresas em clientes em tempo real</p>
         </div>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-xs text-rose-300">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
@@ -86,7 +117,7 @@ export default function RegisterPage() {
               <input
                 type="password"
                 required
-                placeholder="Mínimo 8 caracteres"
+                placeholder="Mínimo 6 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"

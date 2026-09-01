@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const intent = searchParams.get("intent");
     const isHandled = searchParams.get("isHandled");
 
     const messages = await prisma.inboundMessage.findMany({
       where: {
-        ...(intent ? { intentClassification: intent } : {}),
-        ...(isHandled !== null ? { isHandled: isHandled === "true" } : {}),
+        lead: {
+          organizationId: user.organizationId,
+        },
+        ...(intent && intent !== "ALL" ? { intentClassification: intent } : {}),
+        ...(isHandled !== null && isHandled !== undefined ? { isHandled: isHandled === "true" } : {}),
       },
       orderBy: { receivedAt: "desc" },
       take: 50,

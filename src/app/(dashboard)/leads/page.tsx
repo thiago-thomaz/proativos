@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Users2,
   Filter,
-  Download,
   Search,
   CheckCircle2,
   Calendar,
@@ -13,111 +12,97 @@ import {
   Mail,
   ArrowRight,
   Flame,
+  RefreshCw,
 } from "lucide-react";
-import { formatCNPJ, getScoreBadge, getStatusBadge } from "@/lib/utils";
+import { formatCNPJ, formatPhone, getScoreBadge, getStatusBadge } from "@/lib/utils";
 
-const PIPELINE_STAGES = [
-  { id: "NEW", label: "Novos Detectados", count: 12 },
-  { id: "QUALIFIED", label: "Qualificados (ICP)", count: 24 },
-  { id: "READY_TO_CONTACT", label: "Pronto p/ Contato", count: 8 },
-  { id: "CONTACTED", label: "Contatados", count: 18 },
-  { id: "RESPONDED", label: "Respostas", count: 6 },
-  { id: "MEETING", label: "Reunião Agendada", count: 4 },
-  { id: "CONVERTED", label: "Convertidos / Ganho", count: 3 },
-];
-
-const MOCK_LEADS = [
-  {
-    id: "lead-1",
-    razaoSocial: "Bella Pasta Cantina & Pizzaria Ltda",
-    nomeFantasia: "Cantina Bella Pasta",
-    cnpj: "00000001000191",
-    cnae: "56.11-2-01 - Restaurantes e similares",
-    municipio: "Bauru",
-    uf: "SP",
-    score: 94,
-    status: "READY_TO_CONTACT",
-    firstDetectedAt: "Há 2 dias",
-    contactName: "Carlos Eduardo Silva",
-    contactRole: "Sócio Administrador",
-    phone: "(14) 99876-5432",
-    email: "carlos@bellapastaficticia.com.br",
-    reasons: ["CNAE Restaurantes", "Aberta há 48h", "Porte ME", "Bauru/SP"],
-  },
-  {
-    id: "lead-2",
-    razaoSocial: "TechVortex Soluções de TI Ltda",
-    nomeFantasia: "TechVortex",
-    cnpj: "00000002000172",
-    cnae: "62.01-5-01 - Desenvolvimento de Software",
-    municipio: "São Paulo",
-    uf: "SP",
-    score: 91,
-    status: "CONTACTED",
-    firstDetectedAt: "Há 1 dia",
-    contactName: "Mariana Costa",
-    contactRole: "Fundadora & CTO",
-    phone: "(11) 98765-4321",
-    email: "mariana@techvortexficticia.com.br",
-    reasons: ["Segmento TI", "São Paulo/SP", "Decisor Verificado"],
-  },
-  {
-    id: "lead-3",
-    razaoSocial: "Sabor & Brasa Churrascaria ME",
-    nomeFantasia: "Churrascaria Sabor & Brasa",
-    cnpj: "00000003000153",
-    cnae: "56.11-2-01 - Restaurantes e similares",
-    municipio: "Ribeirão Preto",
-    uf: "SP",
-    score: 88,
-    status: "NEW",
-    firstDetectedAt: "Hoje",
-    contactName: "Contato Institucional",
-    contactRole: "Registro CNPJ",
-    phone: "(16) 99765-4321",
-    email: "financeiro@saborebrasaficticia.com.br",
-    reasons: ["Aberta hoje", "CNAE primário", "Ribeirão Preto/SP"],
-  },
-];
+interface LeadItem {
+  id: string;
+  score: number;
+  status: string;
+  qualificationReason?: string | null;
+  firstDetectedAt: string;
+  company: {
+    id: string;
+    cnpj: string;
+    razaoSocial: string;
+    nomeFantasia?: string | null;
+    cnaePrincipal: string;
+    municipio: string;
+    uf: string;
+    porte?: string | null;
+    telefone?: string | null;
+    email?: string | null;
+    contacts?: Array<{
+      id: string;
+      nome: string;
+      cargo?: string | null;
+      telefone?: string | null;
+      email?: string | null;
+      isDecisionMaker?: boolean;
+    }>;
+  };
+  campaign?: {
+    id: string;
+    name: string;
+  };
+}
 
 export default function LeadsPage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
-  const [leads, setLeads] = useState(MOCK_LEADS);
+  const [leads, setLeads] = useState<LeadItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedStage, setSelectedStage] = useState("ALL");
+  const [search, setSearch] = useState("");
+
+  const fetchLeads = async () => {
+    setLoading(true);
+    try {
+      let url = "/api/v1/leads";
+      if (selectedStage !== "ALL") {
+        url += `?status=${selectedStage}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.success && data.leads) {
+        setLeads(data.leads);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar leads:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeads();
+  }, [selectedStage]);
+
+  // Contagem por estágio
+  const countsByStage = leads.reduce((acc: Record<string, number>, lead) => {
+    acc[lead.status] = (acc[lead.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  const PIPELINE_STAGES = [
+    { id: "ALL", label: "Todos os Leads", count: leads.length },
+    { id: "QUALIFIED", label: "Qualificados (ICP)", count: countsByStage["QUALIFIED"] || 0 },
+    { id: "READY_TO_CONTACT", label: "Pronto p/ Contato", count: countsByStage["READY_TO_CONTACT"] || 0 },
+    { id: "CONTACTED", label: "Contatados", count: countsByStage["CONTACTED"] || 0 },
+    { id: "RESPONDED", label: "Respostas", count: countsByStage["RESPONDED"] || 0 },
+    { id: "MEETING", label: "Reunião Agendada", count: countsByStage["MEETING"] || 0 },
+    { id: "CONVERTED", label: "Convertidos / Ganho", count: countsByStage["CONVERTED"] || 0 },
+  ];
 
   const filteredLeads = leads.filter((lead) => {
-    const matchesSearch =
-      lead.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.cnpj.includes(searchTerm) ||
-      lead.municipio.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = selectedStatus === "ALL" || lead.status === selectedStatus;
-    return matchesSearch && matchesStatus;
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      lead.company.razaoSocial.toLowerCase().includes(s) ||
+      (lead.company.nomeFantasia && lead.company.nomeFantasia.toLowerCase().includes(s)) ||
+      lead.company.cnpj.includes(s.replace(/\D/g, "")) ||
+      lead.company.municipio.toLowerCase().includes(s)
+    );
   });
-
-  const exportCSV = () => {
-    const headers = ["CNPJ", "Razao Social", "Nome Fantasia", "Municipio", "UF", "Score", "Status", "Contato", "Email", "Telefone"];
-    const rows = filteredLeads.map(l => [
-      formatCNPJ(l.cnpj),
-      l.razaoSocial,
-      l.nomeFantasia,
-      l.municipio,
-      l.uf,
-      l.score,
-      l.status,
-      l.contactName,
-      l.email,
-      l.phone,
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `leads_proativos_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   return (
     <div className="space-y-6">
@@ -126,50 +111,42 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
             <Users2 className="w-6 h-6 text-indigo-400" />
-            CRM Pipeline de Leads
+            Pipeline & Gestão de Leads
           </h1>
           <p className="text-sm text-slate-400">
-            Gerencie oportunidades qualificadas pelo motor em tempo real.
+            Acompanhe a qualificação, enriquecimento de decisores e o engajamento proativo.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all shadow"
-          >
-            <Download className="w-4 h-4 text-slate-400" />
-            Exportar CSV
-          </button>
-        </div>
+        <button
+          onClick={fetchLeads}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all self-start sm:self-auto"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          Atualizar Pipeline
+        </button>
       </div>
 
-      {/* Pipeline Stage Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
-        <button
-          onClick={() => setSelectedStatus("ALL")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 transition-colors ${
-            selectedStatus === "ALL"
-              ? "bg-indigo-600 text-white"
-              : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          Todos ({leads.length})
-        </button>
+      {/* Pipeline Stage Bar */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         {PIPELINE_STAGES.map((stage) => {
-          const isSelected = selectedStatus === stage.id;
+          const isSelected = selectedStage === stage.id;
           return (
             <button
               key={stage.id}
-              onClick={() => setSelectedStatus(stage.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 transition-colors flex items-center gap-1.5 ${
+              onClick={() => setSelectedStage(stage.id)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 border ${
                 isSelected
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
+                  ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                  : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
               }`}
             >
               <span>{stage.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? "bg-indigo-800 text-indigo-100" : "bg-slate-800 text-slate-400"}`}>
+              <span
+                className={`px-1.5 py-0.2 rounded-md text-[10px] ${
+                  isSelected ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400"
+                }`}
+              >
                 {stage.count}
               </span>
             </button>
@@ -177,105 +154,155 @@ export default function LeadsPage() {
         })}
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-          <input
-            type="text"
-            placeholder="Buscar por razão social, CNPJ ou município..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-          />
-        </div>
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+        <input
+          type="text"
+          placeholder="Buscar por Razão Social, CNPJ ou Cidade..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+        />
       </div>
 
-      {/* Leads Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredLeads.map((lead) => {
-          const scoreBadge = getScoreBadge(lead.score);
-          const statusBadge = getStatusBadge(lead.status);
+      {/* Leads List */}
+      <div className="space-y-3">
+        {loading ? (
+          <div className="p-12 text-center text-slate-500 text-sm">Carregando leads do pipeline...</div>
+        ) : filteredLeads.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 text-sm border border-dashed border-slate-800 rounded-2xl bg-slate-900/30">
+            Nenhum lead encontrado neste estágio do pipeline.
+          </div>
+        ) : (
+          filteredLeads.map((lead) => {
+            const scoreBadge = getScoreBadge(lead.score);
+            const statusBadge = getStatusBadge(lead.status);
+            const decisionMaker = lead.company.contacts?.find((c: any) => c.tipo === "DECISION_MAKER" || c.isDecisionMaker) || lead.company.contacts?.[0];
 
-          return (
-            <div
-              key={lead.id}
-              className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/90 hover:border-indigo-500/40 transition-all flex flex-col justify-between space-y-4"
-            >
-              <div className="space-y-3">
-                {/* Header */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold text-white line-clamp-1">
-                      {lead.nomeFantasia || lead.razaoSocial}
-                    </h3>
-                    <div className="text-xs text-slate-400 font-mono mt-0.5">
-                      {formatCNPJ(lead.cnpj)}
+            let reasons: string[] = [];
+            try {
+              const parsed = JSON.parse(lead.qualificationReason || "{}");
+              if (parsed.reasons && Array.isArray(parsed.reasons)) {
+                reasons = parsed.reasons;
+              } else if (Array.isArray(parsed)) {
+                reasons = parsed.filter((p: any) => p.matched).map((p: any) => p.detail || p.criterion);
+              }
+            } catch {}
+
+            if (reasons.length === 0) {
+              reasons = [`CNAE compatível`, `Localizada em ${lead.company.municipio}/${lead.company.uf}`, `Score ICP ${lead.score}%`];
+            }
+
+            return (
+              <div
+                key={lead.id}
+                className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/90 hover:border-slate-700/80 transition-all space-y-4"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h2 className="text-base font-bold text-white">{lead.company.razaoSocial}</h2>
+                      {lead.company.nomeFantasia && (
+                        <span className="text-xs text-slate-400">({lead.company.nomeFantasia})</span>
+                      )}
+                      <span className="text-xs text-slate-500 font-mono">
+                        {formatCNPJ(lead.company.cnpj)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                      <span>{lead.company.cnaePrincipal}</span>
+                      <span>•</span>
+                      <span className="text-slate-200 font-medium">
+                        {lead.company.municipio}/{lead.company.uf}
+                      </span>
+                      {lead.campaign && (
+                        <>
+                          <span>•</span>
+                          <span className="text-indigo-400">Campanha: {lead.campaign.name}</span>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadge.bg}`}>
-                    {statusBadge.label}
-                  </span>
-                </div>
+                  {/* Badges & Actions */}
+                  <div className="flex items-center gap-2 self-start lg:self-center">
+                    <div
+                      className={`px-3 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${scoreBadge.bg}`}
+                    >
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>Score {lead.score}%</span>
+                    </div>
 
-                {/* Info */}
-                <div className="text-xs text-slate-400 space-y-1">
-                  <div>
-                    📍 <strong className="text-slate-300">{lead.municipio}/{lead.uf}</strong> • {lead.firstDetectedAt}
-                  </div>
-                  <div className="line-clamp-1 text-[11px] text-slate-500">
-                    {lead.cnae}
-                  </div>
-                </div>
+                    <div className={`px-2.5 py-1 rounded-xl border text-xs font-bold ${statusBadge.bg}`}>
+                      {statusBadge.label}
+                    </div>
 
-                {/* Score & Reasons */}
-                <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/60 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-300 flex items-center gap-1">
-                      <Flame className="w-3.5 h-3.5 text-amber-400" />
-                      ICP Score: {lead.score}%
-                    </span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${scoreBadge.bg}`}>
-                      {scoreBadge.label}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1">
-                    {lead.reasons.map((r, i) => (
-                      <span
-                        key={i}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-900/50"
-                      >
-                        ✓ {r}
-                      </span>
-                    ))}
+                    <Link
+                      href={`/leads/${lead.id}`}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-semibold transition-all ml-1"
+                    >
+                      Detalhes
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
                 </div>
 
-                {/* Contact info if available */}
-                <div className="pt-1 space-y-1 text-xs text-slate-400">
-                  <div className="font-medium text-slate-200">{lead.contactName} ({lead.contactRole})</div>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                    <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-500" /> {lead.phone}</span>
-                    <span className="flex items-center gap-1 truncate"><Mail className="w-3 h-3 text-slate-500" /> {lead.email}</span>
+                {/* Match Reasons + Contact Info Split */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-800/60">
+                  {/* Reasons */}
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-indigo-400" />
+                      Critérios do ICP Aprovados
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {reasons.slice(0, 3).map((r, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[10px] px-2 py-0.5 rounded bg-indigo-950/50 text-indigo-300 border border-indigo-900/50"
+                        >
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contact / Decision Maker */}
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">
+                        Decisor / Contato Principal
+                      </div>
+                      <div className="text-xs font-bold text-slate-200">
+                        {decisionMaker?.nome || lead.company.razaoSocial}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        {decisionMaker?.cargo || "Sócio Administrador (QSA)"}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 text-right">
+                      {(decisionMaker?.telefone || lead.company.telefone) && (
+                        <div className="flex items-center justify-end gap-1 text-[11px] text-emerald-400">
+                          <Phone className="w-3 h-3" />
+                          <span>{formatPhone(decisionMaker?.telefone || lead.company.telefone || "")}</span>
+                        </div>
+                      )}
+                      {(decisionMaker?.email || lead.company.email) && (
+                        <div className="flex items-center justify-end gap-1 text-[11px] text-indigo-300">
+                          <Mail className="w-3 h-3" />
+                          <span className="truncate max-w-[130px]">{decisionMaker?.email || lead.company.email}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-
-              {/* Action Button */}
-              <div className="pt-2 border-t border-slate-800/80">
-                <Link
-                  href={`/leads/${lead.id}`}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white text-xs font-semibold transition-all border border-slate-700/80 hover:border-indigo-500"
-                >
-                  Abrir Detalhes & Timeline
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );

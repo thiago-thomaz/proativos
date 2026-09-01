@@ -1,26 +1,87 @@
 "use client";
 
-import { CreditCard, Coins, Check, Zap, Sparkles, ArrowUpRight } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
-
-const TRANSACTIONS = [
-  { id: "tx-1", type: "RECHARGE", desc: "Recarga de Créditos (Plano Professional)", amount: 1500, date: "30/08/2026", cost: "R$ 497,00" },
-  { id: "tx-2", type: "USAGE", desc: "Enriquecimento de Decisor (Carlos Silva)", amount: -2, date: "30/08/2026", cost: "-" },
-  { id: "tx-3", type: "USAGE", desc: "Disparo WhatsApp Cloud (Campanha Restaurantes)", amount: -1, date: "30/08/2026", cost: "-" },
-  { id: "tx-4", type: "USAGE", desc: "Verificação de E-mail Institucional", amount: -1, date: "29/08/2026", cost: "-" },
-];
+import { useEffect, useState } from "react";
+import { CreditCard, Coins, Check, Zap, Sparkles, RefreshCw } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 export default function BillingPage() {
+  const [balance, setBalance] = useState(100);
+  const [currentPlan, setCurrentPlan] = useState("STARTER");
+  const [plans, setPlans] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [subscribing, setSubscribing] = useState<string | null>(null);
+
+  const fetchBillingData = async () => {
+    setLoading(true);
+    try {
+      const [credRes, plansRes] = await Promise.all([
+        fetch("/api/v1/billing/credits"),
+        fetch("/api/v1/billing/plans"),
+      ]);
+
+      const credData = await credRes.json();
+      const plansData = await plansRes.json();
+
+      if (credData.success) {
+        setBalance(credData.balance);
+        setCurrentPlan(credData.plan);
+        setTransactions(credData.transactions || []);
+      }
+
+      if (plansData.success && plansData.plans) {
+        setPlans(plansData.plans);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar faturamento:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBillingData();
+  }, []);
+
+  const handleSubscribe = async (planSlug: string) => {
+    setSubscribing(planSlug);
+    try {
+      const res = await fetch("/api/v1/billing/plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planSlug }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchBillingData();
+      }
+    } catch (err) {
+      console.error("Erro ao assinar plano:", err);
+    } finally {
+      setSubscribing(null);
+    }
+  };
+
   return (
     <div className="max-w-5xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          <CreditCard className="w-6 h-6 text-indigo-400" />
-          Planos, Créditos & Faturamento
-        </h1>
-        <p className="text-sm text-slate-400">
-          Gerenciamento transparente de consumo de dados, enriquecimento e assinaturas.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <CreditCard className="w-6 h-6 text-indigo-400" />
+            Planos, Créditos & Faturamento
+          </h1>
+          <p className="text-sm text-slate-400">
+            Gerenciamento transparente de consumo de dados, enriquecimento e assinaturas.
+          </p>
+        </div>
+
+        <button
+          onClick={fetchBillingData}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all self-start sm:self-auto"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          Atualizar Saldo
+        </button>
       </div>
 
       {/* Credit Account Balance Banner */}
@@ -31,17 +92,12 @@ export default function BillingPage() {
           </div>
           <div className="text-3xl font-bold text-white flex items-center gap-2">
             <Coins className="w-7 h-7 text-indigo-400" />
-            1.450 Créditos
+            {balance.toLocaleString("pt-BR")} Créditos
           </div>
           <p className="text-xs text-slate-400">
-            Equivalente a aproximadamente 725 enriquecimentos completos ou 1.450 mensagens de outreach.
+            Plano Ativo: <strong className="text-white">{currentPlan}</strong> • 1 crédito = 1 outreach ou 2 créditos = enriquecimento completo de decisor.
           </p>
         </div>
-
-        <button className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2">
-          <Zap className="w-4 h-4 text-amber-300" />
-          Comprar Pacote de Créditos
-        </button>
       </div>
 
       {/* Plans Comparison */}
@@ -51,72 +107,114 @@ export default function BillingPage() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-white">STARTER</h3>
-            <div className="text-2xl font-bold text-white">R$ 197<span className="text-xs text-slate-400 font-normal">/mês</span></div>
-            <p className="text-xs text-slate-400">Ideal para validação e prospecção inicial em 1 segmento.</p>
-            <ul className="space-y-2 text-xs text-slate-300">
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> Até 2 Campanhas ICP</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> 500 Créditos / mês</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> Disparo por E-mail</li>
-            </ul>
-          </div>
+          {plans.length === 0 ? (
+            <div className="p-6 text-center text-slate-500 text-xs col-span-3">Carregando planos...</div>
+          ) : (
+            plans.map((p) => {
+              const isCurrent = currentPlan.toUpperCase() === p.slug.toUpperCase();
+              return (
+                <div
+                  key={p.id}
+                  className={`p-6 rounded-2xl border space-y-4 ${
+                    isCurrent
+                      ? "bg-slate-900 border-indigo-500 shadow-xl shadow-indigo-500/10 relative"
+                      : "bg-slate-900/70 border-slate-800"
+                  }`}
+                >
+                  {isCurrent && (
+                    <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500 text-white uppercase tracking-wider">
+                      Plano Atual
+                    </span>
+                  )}
+                  <h3 className="text-base font-bold text-white">{p.name}</h3>
+                  <div className="text-2xl font-bold text-white">
+                    {formatCurrency(p.priceMonthly)}
+                    <span className="text-xs text-slate-400 font-normal">/mês</span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    {p.includedCreditsMonthly.toLocaleString("pt-BR")} créditos inclusos todo mês.
+                  </p>
+                  <ul className="space-y-2 text-xs text-slate-300">
+                    <li className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-indigo-400" /> Até {p.maxCampaigns} Campanhas ICP
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-indigo-400" /> {p.includedCreditsMonthly} Créditos Mensais
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-indigo-400" /> Enriquecimento com IA
+                    </li>
+                  </ul>
 
-          <div className="p-6 rounded-2xl bg-indigo-950/40 border border-indigo-500/50 space-y-4 relative">
-            <span className="absolute top-4 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500 text-white">
-              PLANO ATUAL
-            </span>
-            <h3 className="text-base font-bold text-white">PROFESSIONAL</h3>
-            <div className="text-2xl font-bold text-white">R$ 497<span className="text-xs text-slate-400 font-normal">/mês</span></div>
-            <p className="text-xs text-slate-400">Para empresas em crescimento e múltiplos segmentos.</p>
-            <ul className="space-y-2 text-xs text-slate-300">
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> Campanhas Ilimitadas</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> 1.500 Créditos / mês</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> WhatsApp + E-mail Oficial</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> Conector n8n Ilimitado</li>
-            </ul>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-white">BUSINESS</h3>
-            <div className="text-2xl font-bold text-white">R$ 997<span className="text-xs text-slate-400 font-normal">/mês</span></div>
-            <p className="text-xs text-slate-400">Volume elevado e equipes comerciais dedicadas.</p>
-            <ul className="space-y-2 text-xs text-slate-300">
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> Tudo do Pro</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> 4.000 Créditos / mês</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> Webhook dedicado p/ CRM</li>
-            </ul>
-          </div>
+                  <button
+                    onClick={() => handleSubscribe(p.slug)}
+                    disabled={isCurrent || subscribing === p.slug}
+                    className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      isCurrent
+                        ? "bg-slate-800 text-slate-400 cursor-default"
+                        : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                    }`}
+                  >
+                    {isCurrent ? "Plano Ativo" : subscribing === p.slug ? "Atualizando..." : "Escolher este Plano"}
+                  </button>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
-      {/* Transactions Ledger */}
-      <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-        <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-          Extrato de Uso & Transações
+      {/* Transactions History */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-bold text-white uppercase tracking-wider text-slate-400">
+          Extrato de Consumo & Recargas
         </h2>
 
-        <div className="rounded-xl border border-slate-800 overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950/70 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
               <tr>
-                <th className="px-4 py-3">Data</th>
-                <th className="px-4 py-3">Descrição da Operação</th>
-                <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3 text-right">Créditos</th>
+                <th className="px-5 py-3.5 font-semibold">Tipo</th>
+                <th className="px-5 py-3.5 font-semibold">Descrição</th>
+                <th className="px-5 py-3.5 font-semibold">Data</th>
+                <th className="px-5 py-3.5 font-semibold text-right">Quantidade</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {TRANSACTIONS.map((tx) => (
-                <tr key={tx.id} className="hover:bg-slate-800/30">
-                  <td className="px-4 py-3 text-slate-400">{tx.date}</td>
-                  <td className="px-4 py-3 font-medium text-white">{tx.desc}</td>
-                  <td className="px-4 py-3 text-[11px] text-slate-400">{tx.type}</td>
-                  <td className={`px-4 py-3 text-right font-mono font-bold ${tx.amount > 0 ? "text-emerald-400" : "text-amber-400"}`}>
-                    {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+            <tbody className="divide-y divide-slate-800/60">
+              {transactions.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-5 py-8 text-center text-slate-500">
+                    Nenhuma transação registrada até o momento.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                transactions.map((tx) => (
+                  <tr key={tx.id} className="hover:bg-slate-800/30">
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          tx.amount > 0
+                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {tx.type}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-white">{tx.description}</td>
+                    <td className="px-5 py-3.5 text-slate-400">
+                      {new Date(tx.createdAt).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td
+                      className={`px-5 py-3.5 text-right font-bold font-mono ${
+                        tx.amount > 0 ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

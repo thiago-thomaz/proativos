@@ -19,8 +19,13 @@ async function runDataIngestionTests() {
     }
   }
 
+  // Limpar dados temporários de testes anteriores para garantir isolamento
+  await prisma.campaign.deleteMany({ where: { organization: { slug: { startsWith: "test-org-" } } } }).catch(() => {});
+  await prisma.company.deleteMany({ where: { sourceProvider: "MOCK_SANDBOX" } }).catch(() => {});
+  await prisma.organization.deleteMany({ where: { slug: { startsWith: "test-org-" } } }).catch(() => {});
+
   // Seed único por execução de teste para garantir isolamento determinístico
-  const seed = Math.floor(Math.random() * 80000) + 10000;
+  const seed = Math.floor(Math.random() * 800000) + 100000;
 
   // Configurar Organização e Campanha de Teste para Auto-Matching de ICP
   const testOrgA = await prisma.organization.upsert({
