@@ -11,7 +11,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       database: "connected",
       uptime: process.uptime(),
-      version: "1.0.0",
+      version: "1.0.1",
     });
   } catch (error) {
     return NextResponse.json(
