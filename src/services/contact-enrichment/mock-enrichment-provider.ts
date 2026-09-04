@@ -4,6 +4,9 @@ import {
   EnrichmentProviderHealth,
 } from "./provider-interface";
 import { EnrichmentResult, EnrichedContactPayload } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const providerLogger = new AppLogger("mock-enrichment-provider");
 
 export class MockEnrichmentProvider implements ContactEnrichmentProvider {
   name = "MOCK_ENRICHMENT_PROVIDER";
@@ -11,12 +14,14 @@ export class MockEnrichmentProvider implements ContactEnrichmentProvider {
   private shouldFailNext = 0;
 
   setSimulatedFailures(count: number) {
+    providerLogger.warn(`Simulação de falhas de enriquecimento configurada: ${count}`);
     this.shouldFailNext = count;
     this.failureSimulationCount = 0;
   }
 
   async healthCheck(): Promise<EnrichmentProviderHealth> {
     const start = Date.now();
+    providerLogger.debug("Health check do provider mock de enriquecimento");
     return {
       status: "HEALTHY",
       latencyMs: Date.now() - start + 8,
@@ -43,8 +48,10 @@ export class MockEnrichmentProvider implements ContactEnrichmentProvider {
   }
 
   async enrichCompany(target: CompanyEnrichmentTarget): Promise<EnrichmentResult> {
+    providerLogger.info("Enriquecendo empresa via mock provider", { companyId: target.companyId, cnpj: target.cnpj });
     if (this.shouldFailNext > 0 && this.failureSimulationCount < this.shouldFailNext) {
       this.failureSimulationCount++;
+      providerLogger.warn(`Falha simulada no mock enrichment: ${this.failureSimulationCount}/${this.shouldFailNext}`);
       throw new Error(`[MOCK_ENRICHMENT] Erro temporário de rede simulado (${this.failureSimulationCount}/${this.shouldFailNext})`);
     }
 
@@ -115,6 +122,7 @@ export class MockEnrichmentProvider implements ContactEnrichmentProvider {
     });
 
     fieldsFound.push("DECISOR_QSA", "WHATSAPP_DECISOR", "EMAIL_DECISOR");
+    providerLogger.info("Enriquecimento mock concluído", { companyId: target.companyId, contactsFound: contacts.length });
 
     return {
       companyId: target.companyId,

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleInboundMessage } from "@/services/reply-classifier";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:webhooks:email");
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { event, providerMessageId, email, from, to, subject, messageBody, organizationId } = body;
+    apiLogger.info("Webhook E-mail recebido", { event, providerMessageId, subject, organizationId });
 
     // 1. Inbound Email (Resposta do lead)
     if (event === "INBOUND" || from) {
@@ -28,6 +32,8 @@ export async function POST(req: NextRequest) {
         toIdentifier: to || "contato@empresa.com.br",
         body: messageBody || subject || "",
       });
+
+      apiLogger.info("E-mail inbound processado", { leadId, intent: inboundRes?.intent });
 
       return NextResponse.json({
         success: true,
@@ -69,11 +75,14 @@ export async function POST(req: NextRequest) {
             detail: `Status atualizado via Webhook de E-mail: ${newStatus}`,
           },
         });
+
+        apiLogger.info("Status de e-mail atualizado", { messageId: msg.id, status: newStatus });
       }
     }
 
     return NextResponse.json({ success: true, processed: true });
   } catch (error: any) {
+    apiLogger.error("Falha ao processar webhook de email", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Falha ao processar webhook de email", detail: error.message },
       { status: 500 }

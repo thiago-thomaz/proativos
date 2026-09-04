@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:companies");
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,8 +32,11 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    apiLogger.debug("COMPANIES_LISTED", { count: companies.length, total, uf, municipio });
+
     return NextResponse.json({ success: true, count: companies.length, total, companies });
   } catch (error) {
+    apiLogger.error("COMPANIES_FETCH_ERROR", error);
     return NextResponse.json({ error: "Failed to fetch companies", details: String(error) }, { status: 500 });
   }
 }

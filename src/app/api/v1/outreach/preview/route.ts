@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { personalizeMessage } from "@/services/message-personalizer";
 import { checkOutreachEligibility } from "@/services/outreach-eligibility";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:outreach:preview");
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { leadId, templateText, templateSubject } = body;
+    apiLogger.info("Gerando preview de outreach", { leadId, templateSubject });
 
     if (!leadId) {
+      apiLogger.warn("Parâmetro leadId ausente para preview");
       return NextResponse.json(
         { error: "Parâmetro 'leadId' é obrigatório." },
         { status: 400 }
@@ -25,6 +30,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!lead) {
+      apiLogger.warn("Lead não encontrado para preview", { leadId });
       return NextResponse.json(
         { error: "Lead não encontrado." },
         { status: 404 }
@@ -61,6 +67,12 @@ export async function POST(req: NextRequest) {
       },
     }).personalized;
 
+    apiLogger.info("Preview de mensagem gerado", {
+      leadId: lead.id,
+      channel: eligibility.recommendedChannel || "EMAIL",
+      missingCount: rendered.missingVariables.length,
+    });
+
     return NextResponse.json({
       success: true,
       preview: {
@@ -75,6 +87,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
+    apiLogger.error("Falha ao gerar preview da mensagem", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Falha ao gerar preview da mensagem", detail: error.message },
       { status: 500 }

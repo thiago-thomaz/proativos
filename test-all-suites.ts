@@ -27,7 +27,11 @@ let totalSuitesFailed = 0;
 for (const suite of suites) {
   process.stdout.write(`⏳ Executando ${suite.name} (${suite.file})... `);
   try {
-    const output = execSync(`npx tsx ${suite.file}`, { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+    const output = execSync(`npx tsx ${suite.file}`, { 
+      encoding: "utf-8", 
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 100 * 1024 * 1024
+    });
     console.log("✅ PASSOU!");
     totalSuitesPassed++;
   } catch (err: any) {

@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { routeLeadToOwner } from "./lead-routing";
 import { sendSmartNotification } from "./notification-engine";
+import { AppLogger } from "@/lib/logger";
+
+const salesLoopLogger = new AppLogger("sales-loop");
 
 /**
  * Autonomous Sales Loop Coordinator (Fase 7)
@@ -10,6 +13,7 @@ import { sendSmartNotification } from "./notification-engine";
  * 3. Leads qualificados que responderam e requerem agendamento
  */
 export async function runAutonomousSalesLoop(organizationId: string) {
+  salesLoopLogger.info("SALES_LOOP_STARTED", { organizationId }, { organizationId });
   const actionsTaken: string[] = [];
 
   // 1. Identificar Leads sem Owner e rotear automaticamente
@@ -42,6 +46,12 @@ export async function runAutonomousSalesLoop(organizationId: string) {
     });
     actionsTaken.push(`Alerta gerado para oportunidade quente ${opp.id}`);
   }
+
+  salesLoopLogger.info("SALES_LOOP_COMPLETED", {
+    organizationId,
+    actionsCount: actionsTaken.length,
+    actionsTaken,
+  }, { organizationId });
 
   return {
     success: true,

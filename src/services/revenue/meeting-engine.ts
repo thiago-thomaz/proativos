@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { MeetingStatus } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const meetingLogger = new AppLogger("meeting");
 
 export interface ScheduleMeetingInput {
   organizationId: string;
@@ -32,23 +35,30 @@ export async function scheduleMeeting(input: ScheduleMeetingInput) {
     },
   });
 
-  // Atualizar estágio do Deal para MEETING se aplicável
+  // Atualizar estágio do Deal para MEETING se aplicável (preservando deals já fechados)
   if (input.dealId) {
-    await prisma.deal.update({
+    const currentDeal = await prisma.deal.findUnique({
       where: { id: input.dealId },
-      data: {
-        stage: "MEETING",
-        probability: 60,
-        nextAction: `Reunião marcada para ${input.scheduledAt.toLocaleDateString("pt-BR")}`,
-        nextActionAt: input.scheduledAt,
-      },
+      select: { stage: true },
     });
+
+    if (currentDeal && currentDeal.stage !== "WON" && currentDeal.stage !== "LOST") {
+      await prisma.deal.update({
+        where: { id: input.dealId },
+        data: {
+          stage: "MEETING",
+          probability: 60,
+          nextAction: `Reunião marcada para ${input.scheduledAt.toLocaleDateString("pt-BR")}`,
+          nextActionAt: input.scheduledAt,
+        },
+      });
+    }
 
     await prisma.dealEvent.create({
       data: {
         dealId: input.dealId,
         eventType: "MEETING_LINKED",
-        toStage: "MEETING",
+        toStage: currentDeal?.stage || "MEETING",
         note: `Reunião agendada: ${input.title}`,
         actorId: input.ownerId || null,
       },
@@ -69,6 +79,13 @@ export async function scheduleMeeting(input: ScheduleMeetingInput) {
     });
   }
 
+  meetingLogger.info("MEETING_SCHEDULED", {
+    meetingId: meeting.id,
+    leadId: input.leadId,
+    dealId: input.dealId,
+    scheduledAt: input.scheduledAt,
+  }, { organizationId: input.organizationId, userId: input.ownerId });
+
   return meeting;
 }
 
@@ -83,6 +100,11 @@ export async function updateMeetingStatus(meetingId: string, status: MeetingStat
       ...(notes ? { notes } : {}),
     },
   });
+
+  meetingLogger.info("MEETING_STATUS_UPDATED", {
+    meetingId,
+    status,
+  }, { organizationId: meeting.organizationId });
 
   return meeting;
 }

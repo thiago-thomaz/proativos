@@ -64,6 +64,10 @@ async function runTests() {
     create: { name: "Tenant Revenue B", slug: "test-org-rev-b", plan: "FREE" },
   });
 
+  // Limpeza de deals/transações anteriores para isolamento total do teste
+  await prisma.dealEvent.deleteMany({ where: { deal: { organizationId: { in: [orgA.id, orgB.id] } } } }).catch(() => {});
+  await prisma.deal.deleteMany({ where: { organizationId: { in: [orgA.id, orgB.id] } } }).catch(() => {});
+
   const userA1 = await prisma.user.upsert({
     where: { email: "sales1@org-a.com" },
     update: {},

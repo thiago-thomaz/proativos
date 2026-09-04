@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
+
+const apiLogger = new AppLogger("api:opportunities:id");
 
 /**
  * GET /api/v1/opportunities/[id]
@@ -40,11 +43,18 @@ export async function GET(
     });
 
     if (!opp) {
+      apiLogger.warn("OPPORTUNITY_NOT_FOUND", { opportunityId: params.id });
       return NextResponse.json(
         { success: false, error: "Oportunidade não encontrada" },
         { status: 404 }
       );
     }
+
+    apiLogger.debug("OPPORTUNITY_FETCHED", {
+      opportunityId: opp.id,
+      score: opp.opportunityScore,
+      priority: opp.priority,
+    }, { organizationId: opp.organizationId });
 
     return NextResponse.json({
       success: true,
@@ -55,6 +65,7 @@ export async function GET(
       },
     });
   } catch (error: any) {
+    apiLogger.error("OPPORTUNITY_FETCH_ERROR", error, { opportunityId: params.id });
     return NextResponse.json(
       { success: false, error: error.message || "Erro ao consultar oportunidade" },
       { status: 500 }

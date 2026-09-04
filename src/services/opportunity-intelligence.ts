@@ -11,6 +11,9 @@ import {
 } from "@/lib/types";
 import { evaluateCompanyAgainstICP } from "./icp-engine";
 import { calculateContactabilityScore } from "./contactability";
+import { AppLogger } from "@/lib/logger";
+
+const oppLogger = new AppLogger("opportunity");
 
 export interface CompanyOpportunityInput {
   id?: string;

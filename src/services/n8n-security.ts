@@ -1,5 +1,8 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const n8nLogger = new AppLogger("n8n-security");
 
 // Cache in-memory para proteção contra replay (Request IDs processados)
 const processedRequestIds = new Map<string, number>();
@@ -44,6 +47,7 @@ export async function validateN8nRequest(params: {
   const rawKey = params.apiKeyHeader?.replace(/^Bearer\s+/i, "").trim();
 
   if (!rawKey) {
+    n8nLogger.warn("N8N_AUTH_MISSING_HEADER");
     return {
       valid: false,
       errorCode: "INVALID_API_KEY",
@@ -60,6 +64,7 @@ export async function validateN8nRequest(params: {
   });
 
   if (!apiKeyRecord || !apiKeyRecord.active || !apiKeyRecord.organization.active) {
+    n8nLogger.warn("N8N_AUTH_INVALID_KEY");
     return {
       valid: false,
       errorCode: "INVALID_API_KEY",
@@ -69,6 +74,7 @@ export async function validateN8nRequest(params: {
 
   // 2. Verificar expiração da chave
   if (apiKeyRecord.expiresAt && apiKeyRecord.expiresAt.getTime() < Date.now()) {
+    n8nLogger.warn("N8N_AUTH_EXPIRED_KEY", { apiKeyId: apiKeyRecord.id });
     return {
       valid: false,
       errorCode: "EXPIRED_KEY",
@@ -80,6 +86,11 @@ export async function validateN8nRequest(params: {
   if (params.requiredPermission) {
     const allowed = apiKeyRecord.permissions.split(",").map((p) => p.trim());
     if (!allowed.includes(params.requiredPermission) && !allowed.includes("ALL")) {
+      n8nLogger.warn("N8N_AUTH_PERMISSION_DENIED", {
+        apiKeyId: apiKeyRecord.id,
+        required: params.requiredPermission,
+        allowed: apiKeyRecord.permissions,
+      });
       return {
         valid: false,
         errorCode: "INVALID_API_KEY",
@@ -95,6 +106,7 @@ export async function validateN8nRequest(params: {
     const diff = Math.abs(now - reqTime);
 
     if (isNaN(reqTime) || diff > 5 * 60 * 1000) {
+      n8nLogger.warn("N8N_AUTH_EXPIRED_TIMESTAMP", { skewMs: diff });
       return {
         valid: false,
         errorCode: "EXPIRED_TIMESTAMP",
@@ -106,6 +118,7 @@ export async function validateN8nRequest(params: {
   // 5. Proteção contra Replay Attack (RequestId / Nonce)
   if (params.requestIdHeader) {
     if (processedRequestIds.has(params.requestIdHeader)) {
+      n8nLogger.warn("N8N_AUTH_REPLAY_DETECTED", { requestId: params.requestIdHeader });
       return {
         valid: false,
         errorCode: "REPLAY_DETECTED",
@@ -119,6 +132,7 @@ export async function validateN8nRequest(params: {
   if (apiKeyRecord.secretHash && params.signatureHeader && params.rawPayload) {
     const expectedSig = generateHmacSignature(params.rawPayload, apiKeyRecord.secretHash);
     if (params.signatureHeader !== expectedSig) {
+      n8nLogger.warn("N8N_AUTH_INVALID_SIGNATURE", { apiKeyId: apiKeyRecord.id });
       return {
         valid: false,
         errorCode: "INVALID_SIGNATURE",
@@ -131,6 +145,11 @@ export async function validateN8nRequest(params: {
   await prisma.apiKey.update({
     where: { id: apiKeyRecord.id },
     data: { lastUsedAt: new Date() },
+  });
+
+  n8nLogger.debug("N8N_AUTH_SUCCESS", {
+    apiKeyId: apiKeyRecord.id,
+    organizationId: apiKeyRecord.organizationId,
   });
 
   return {

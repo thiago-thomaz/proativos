@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const routingLogger = new AppLogger("lead-routing");
 
 export interface RoutingCriteria {
   states?: string[];
@@ -106,6 +109,13 @@ export async function routeLeadToOwner(leadId: string) {
       }`,
     },
   });
+
+  routingLogger.info("LEAD_ROUTED", {
+    leadId: lead.id,
+    ownerId: assignedUser.id,
+    ownerName: assignedUser.name,
+    ruleUsed: matchedRule?.name || "DEFAULT_FALLBACK",
+  }, { organizationId: lead.organizationId, userId: assignedUser.id });
 
   return {
     routed: true,

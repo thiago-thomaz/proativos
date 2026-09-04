@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 import { CustomerWebhookEvent } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const webhookLogger = new AppLogger("customer-webhooks");
 
 export interface DispatchCustomerWebhookParams {
   organizationId: string;
@@ -57,6 +60,12 @@ export async function dispatchCustomerWebhook(params: DispatchCustomerWebhookPar
 
     results.push({ webhookId: config.id, deliveryId: delivery.id, status: "SUCCESS" });
   }
+
+  webhookLogger.info("CUSTOMER_WEBHOOK_DISPATCHED", {
+    eventType,
+    configsCount: configs.length,
+    dispatchedCount: results.length,
+  }, { organizationId });
 
   return { dispatched: results.length, details: results };
 }

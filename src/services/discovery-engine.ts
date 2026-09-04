@@ -4,6 +4,9 @@ import { OpeningDateFilter } from "@/lib/types";
 import { MockSandboxProvider } from "./data-providers/mock-sandbox-provider";
 import { processCompanyBatch } from "./data-ingestion/ingestion-engine";
 import { evaluateCompanyAgainstICP } from "./icp-engine";
+import { AppLogger } from "@/lib/logger";
+
+const discoveryLogger = new AppLogger("discovery");
 
 export interface RunDiscoveryOptions {
   campaignId?: string;
@@ -32,6 +35,13 @@ export async function runCompanyDiscovery(
 ): Promise<DiscoveryResult> {
   const executionId = options.executionId || `disc-exec-${Date.now()}`;
   const limit = options.limit || 50;
+
+  discoveryLogger.info("DISCOVERY_RUN_STARTED", {
+    executionId,
+    limit,
+    campaignId: options.campaignId,
+    resumeFromCheckpoint: options.resumeFromCheckpoint,
+  }, { organizationId: options.organizationId });
 
   // 1. Carregar Campanhas Ativas (ou Campanha Específica)
   const campaigns = await prisma.campaign.findMany({
@@ -178,6 +188,15 @@ export async function runCompanyDiscovery(
       recordsProcessed: totalDiscovered,
     },
   });
+
+  discoveryLogger.info("DISCOVERY_RUN_COMPLETED", {
+    executionId,
+    companiesDiscovered: totalDiscovered,
+    companiesCreated: totalCreated,
+    companiesUpdated: totalUpdated,
+    leadsCreated: totalLeadsCreated,
+    checkpointId: checkpoint.id,
+  }, { organizationId: options.organizationId });
 
   return {
     executionId,

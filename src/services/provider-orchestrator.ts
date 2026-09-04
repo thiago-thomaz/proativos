@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { pushToDeadLetterQueue } from "./dlq-engine";
+import { AppLogger } from "@/lib/logger";
+
+const providerLogger = new AppLogger("provider-orchestrator");
 
 export type ProviderHealthStatus = "HEALTHY" | "DEGRADED" | "DOWN";
 
@@ -66,6 +69,12 @@ export async function executeWithFailover<TInput = any, TOutput = any>(
       },
     }).catch(() => {});
 
+    providerLogger.debug("PROVIDER_EXECUTE_PRIMARY_SUCCESS", {
+      provider: primaryProvider.name,
+      latencyMs: latency,
+      queueType,
+    }, { organizationId });
+
     return {
       success: true,
       data: primaryProvider.normalizeResponse(data),
@@ -74,6 +83,12 @@ export async function executeWithFailover<TInput = any, TOutput = any>(
     };
   } catch (primaryError: any) {
     const primaryErrMsg = primaryError.message || "Erro desconhecido no provedor primário";
+
+    providerLogger.warn("PROVIDER_PRIMARY_FAILED", {
+      provider: primaryProvider.name,
+      error: primaryErrMsg,
+      hasSecondary: Boolean(secondaryProvider),
+    }, { organizationId });
 
     // Marcar provedor primário como degradado ou down
     prisma.providerConfig.upsert({
@@ -113,6 +128,12 @@ export async function executeWithFailover<TInput = any, TOutput = any>(
           },
         }).catch(() => {});
 
+        providerLogger.info("PROVIDER_FAILOVER_SUCCESS", {
+          primaryProvider: primaryProvider.name,
+          secondaryProvider: secondaryProvider.name,
+          latencyMs: secLatency,
+        }, { organizationId });
+
         return {
           success: true,
           data: secondaryProvider.normalizeResponse(secData),
@@ -121,6 +142,11 @@ export async function executeWithFailover<TInput = any, TOutput = any>(
         };
       } catch (secError: any) {
         const secErrMsg = secError.message || "Erro no provedor secundário de failover";
+
+        providerLogger.error("PROVIDER_FAILOVER_FAILED", secError, {
+          primary: primaryProvider.name,
+          secondary: secondaryProvider.name,
+        }, { organizationId });
 
         // Ambos falharam -> Enviar para Dead Letter Queue
         await pushToDeadLetterQueue({

@@ -20,7 +20,8 @@ async function runDataIngestionTests() {
   }
 
   // Limpar dados temporários de testes anteriores para garantir isolamento
-  await prisma.campaign.deleteMany({ where: { organization: { slug: { startsWith: "test-org-" } } } }).catch(() => {});
+  await prisma.lead.deleteMany({}).catch(() => {});
+  await prisma.campaign.deleteMany({}).catch(() => {});
   await prisma.company.deleteMany({ where: { sourceProvider: "MOCK_SANDBOX" } }).catch(() => {});
   await prisma.organization.deleteMany({ where: { slug: { startsWith: "test-org-" } } }).catch(() => {});
 

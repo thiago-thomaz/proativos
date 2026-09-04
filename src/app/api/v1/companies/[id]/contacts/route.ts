@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:companies:contacts");
 
 export async function GET(
   req: NextRequest,
@@ -16,11 +19,14 @@ export async function GET(
     });
 
     if (!company) {
+      apiLogger.warn("COMPANY_CONTACTS_NOT_FOUND", { companyId: params.id });
       return NextResponse.json(
         { error: "Empresa não encontrada" },
         { status: 404 }
       );
     }
+
+    apiLogger.debug("COMPANY_CONTACTS_FETCHED", { companyId: company.id, count: company.contacts.length });
 
     return NextResponse.json({
       companyId: company.id,
@@ -30,6 +36,7 @@ export async function GET(
       contacts: company.contacts,
     });
   } catch (error: any) {
+    apiLogger.error("COMPANY_CONTACTS_ERROR", error, { companyId: params.id });
     return NextResponse.json(
       { error: "Erro ao buscar contatos da empresa", detail: error.message },
       { status: 500 }

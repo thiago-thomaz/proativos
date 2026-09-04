@@ -1,0 +1,74 @@
+{
+  "name": "PLE - Cadence Scheduler & Step Progression",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/10 9-18 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Every 10 min Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.PLE_API_BASE_URL }}/cadence/process",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.PLE_API_KEY }}"
+            },
+            {
+              "name": "X-Timestamp",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "mode",
+              "value": "STEP_PROGRESSION"
+            },
+            {
+              "name": "limit",
+              "value": 50
+            }
+          ]
+        }
+      },
+      "name": "Progress Active Cadences",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Every 10 min Schedule": {
+      "main": [
+        [
+          {
+            "node": "Progress Active Cadences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

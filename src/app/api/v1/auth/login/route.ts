@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, signToken } from "@/lib/auth";
 import { UserRole } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:auth:login");
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,6 +12,7 @@ export async function POST(req: NextRequest) {
     const { email, password } = body;
 
     if (!email || !password) {
+      apiLogger.warn("LOGIN_FAILED_MISSING_CREDENTIALS");
       return NextResponse.json(
         { error: "E-mail e senha são obrigatórios." },
         { status: 400 }
@@ -22,6 +26,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user || !user.active) {
+      apiLogger.warn("LOGIN_FAILED_USER_NOT_FOUND_OR_INACTIVE", { email });
       return NextResponse.json(
         { error: "Credenciais inválidas ou usuário inativo." },
         { status: 401 }
@@ -31,6 +36,7 @@ export async function POST(req: NextRequest) {
     // Verificar senha
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) {
+      apiLogger.warn("LOGIN_FAILED_INVALID_PASSWORD", { email });
       return NextResponse.json(
         { error: "Credenciais inválidas." },
         { status: 401 }
@@ -62,6 +68,11 @@ export async function POST(req: NextRequest) {
       },
     }).catch(() => {});
 
+    apiLogger.info("LOGIN_SUCCESS", { userId: user.id, email: user.email }, {
+      organizationId: user.organizationId,
+      userId: user.id,
+    });
+
     // Retornar resposta com Cookie HttpOnly
     const response = NextResponse.json({
       success: true,
@@ -80,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
+    apiLogger.error("LOGIN_ERROR", error);
     return NextResponse.json(
       { error: "Erro interno no servidor de autenticação." },
       { status: 500 }

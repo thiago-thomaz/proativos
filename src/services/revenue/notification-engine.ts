@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const notifLogger = new AppLogger("notification");
 
 export interface SendNotificationInput {
   organizationId: string;
@@ -27,6 +30,12 @@ export async function sendSmartNotification(input: SendNotificationInput) {
     },
   });
 
+  notifLogger.info("NOTIFICATION_SENT", {
+    notifId: notif.id,
+    type: input.type,
+    channel: input.channel || "IN_APP",
+  }, { organizationId: input.organizationId, userId: input.userId });
+
   return notif;
 }
 
@@ -49,8 +58,14 @@ export async function getUnreadNotifications(organizationId: string, userId?: st
  * Marca notificação como lida
  */
 export async function markNotificationAsRead(notificationId: string) {
-  return prisma.notification.update({
+  const notif = await prisma.notification.update({
     where: { id: notificationId },
     data: { read: true },
   });
+
+  notifLogger.info("NOTIFICATION_MARKED_READ", {
+    notificationId,
+  }, { organizationId: notif.organizationId, userId: notif.userId });
+
+  return notif;
 }

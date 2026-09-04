@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { CadenceStepConfig } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const cadenceLogger = new AppLogger("cadence");
 
 export const DEFAULT_CADENCE_STEPS: CadenceStepConfig[] = [
   {
@@ -47,6 +50,7 @@ export async function getNextCadenceStep(
   });
 
   if (!lead) {
+    cadenceLogger.debug("CADENCE_LEAD_NOT_FOUND", { leadId });
     return { shouldSend: false, reason: "Lead não encontrado." };
   }
 
@@ -96,6 +100,12 @@ export async function getNextCadenceStep(
       };
     }
   }
+
+  cadenceLogger.info("CADENCE_STEP_APPROVED", {
+    leadId: lead.id,
+    stepOrder: targetStep.stepOrder,
+    channel: targetStep.channel,
+  }, { organizationId: lead.organizationId });
 
   return {
     shouldSend: true,

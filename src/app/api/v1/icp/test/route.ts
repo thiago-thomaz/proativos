@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { evaluateCompanyAgainstICP } from "@/services/icp-engine";
 import { assessICPQuality } from "@/services/icp-quality";
 import { ICPStructuredDefinition, ICPFilterConfig } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:icp:test");
 
 export async function POST(req: NextRequest) {
   try {
@@ -81,6 +84,13 @@ export async function POST(req: NextRequest) {
 
     const quality = assessICPQuality(companies.length, matchesCount, distribution);
 
+    apiLogger.info("ICP_TEST_SIMULATION_COMPLETED", {
+      totalUniverse: companies.length,
+      matchedCount: matchesCount,
+      rejectedCount: rejectsCount,
+      qualityRating: quality.rating,
+    });
+
     return NextResponse.json({
       success: true,
       totalUniverse: companies.length,
@@ -91,6 +101,7 @@ export async function POST(req: NextRequest) {
       sampleLeads: evaluatedSamples,
     });
   } catch (error) {
+    apiLogger.error("ICP_TEST_ERROR", error);
     return NextResponse.json(
       { error: "Falha ao testar ICP", details: String(error) },
       { status: 500 }

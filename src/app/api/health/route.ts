@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:health");
 
 export async function GET() {
   try {
     // Check DB connectivity
     await prisma.$queryRaw`SELECT 1`;
+    apiLogger.debug("Health check executado com sucesso: DB conectado");
 
     return NextResponse.json({
       status: "healthy",
@@ -15,6 +19,7 @@ export async function GET() {
       phase: "FASE 8 - PRODUCTION REALITY AUDITED",
     });
   } catch (error) {
+    apiLogger.error("Health check falhou: DB desconectado", { error: String(error) });
     return NextResponse.json(
       {
         status: "unhealthy",

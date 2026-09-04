@@ -5,6 +5,9 @@ import {
   ICPFilterConfig,
 } from "@/lib/types";
 import { resolveOpeningDateRange, formatSaoPauloDate } from "@/lib/date-utils";
+import { AppLogger } from "@/lib/logger";
+
+const icpLogger = new AppLogger("icp");
 
 export interface CompanyEvaluationInput {
   cnpj: string;
@@ -471,7 +474,7 @@ export function evaluateCompanyAgainstICP(
     rejections.push(`✗ Score total atingido (${finalScore}%) está abaixo do mínimo exigido (${icp.minScore}%).`);
   }
 
-  return {
+  const evaluationResult = {
     matched: isMatch,
     score: finalScore,
     reasons,
@@ -479,6 +482,16 @@ export function evaluateCompanyAgainstICP(
     breakdown,
     hardFiltersPassed: true,
   };
+
+  icpLogger.debug("ICP_EVALUATED", {
+    cnpj: company.cnpj,
+    score: finalScore,
+    matched: isMatch,
+    reasonsCount: reasons.length,
+    rejectionsCount: rejections.length,
+  });
+
+  return evaluationResult;
 }
 
 /**

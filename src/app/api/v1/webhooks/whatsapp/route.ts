@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleInboundMessage } from "@/services/reply-classifier";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:webhooks:whatsapp");
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { event, providerMessageId, fromPhone, toPhone, messageText, organizationId } = body;
+    apiLogger.info("Webhook WhatsApp recebido", { event, providerMessageId, fromPhone: fromPhone ? "***" : undefined, organizationId });
 
     // 1. Inbound WhatsApp Message
     if (event === "INBOUND" || fromPhone) {
@@ -28,6 +32,8 @@ export async function POST(req: NextRequest) {
         toIdentifier: toPhone || "11999999999",
         body: messageText || "",
       });
+
+      apiLogger.info("Mensagem WhatsApp inbound processada", { leadId, intent: inboundRes?.intent });
 
       return NextResponse.json({
         success: true,
@@ -68,11 +74,14 @@ export async function POST(req: NextRequest) {
             detail: `Status atualizado via Webhook de WhatsApp: ${newStatus}`,
           },
         });
+
+        apiLogger.info("Status de mensagem WhatsApp atualizado", { messageId: msg.id, status: newStatus });
       }
     }
 
     return NextResponse.json({ success: true, processed: true });
   } catch (error: any) {
+    apiLogger.error("Falha ao processar webhook de whatsapp", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Falha ao processar webhook de whatsapp", detail: error.message },
       { status: 500 }

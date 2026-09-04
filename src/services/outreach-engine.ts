@@ -4,6 +4,9 @@ import { personalizeMessage } from "./message-personalizer";
 import { getNextCadenceStep, DEFAULT_CADENCE_STEPS } from "./cadence-engine";
 import { MockEmailProvider } from "./outreach-providers/mock-email-provider";
 import { MockWhatsAppProvider } from "./outreach-providers/mock-whatsapp-provider";
+import { AppLogger } from "@/lib/logger";
+
+const outreachLogger = new AppLogger("outreach");
 
 export interface OutreachSendOptions {
   forceChannel?: "EMAIL" | "WHATSAPP";
@@ -248,6 +251,14 @@ export async function sendOutreachMessage(
       },
     });
   }
+
+  outreachLogger.info("OUTREACH_DISPATCH_COMPLETED", {
+    leadId: lead.id,
+    campaignId: campaign.id,
+    channel,
+    status: sendResult.success ? "DELIVERED" : "FAILED",
+    provider: sendResult.provider,
+  }, { organizationId: lead.organizationId });
 
   return {
     success: sendResult.success,

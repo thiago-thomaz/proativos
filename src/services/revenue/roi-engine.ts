@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { RoiMetrics } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const roiLogger = new AppLogger("roi");
 
 /**
  * Motor Determinístico de ROI & Unit Economics (Fase 7)
@@ -48,7 +51,7 @@ export async function calculateOrganizationRoi(organizationId: string): Promise<
   const averageDealValue = dealsWon.length > 0 ? totalRevenue / dealsWon.length : 1000;
   const ltv = averageDealValue * 12; // Anualizado (12 meses de retenção média)
 
-  return {
+  const metrics: RoiMetrics = {
     leadsGenerated,
     qualifiedLeads,
     contactedCount,
@@ -71,4 +74,14 @@ export async function calculateOrganizationRoi(organizationId: string): Promise<
     costPerMeeting,
     ltv,
   };
+
+  roiLogger.info("ROI_CALCULATED", {
+    organizationId,
+    totalRevenue,
+    totalCost,
+    roiPercentage,
+    dealsWon: dealsWon.length,
+  }, { organizationId });
+
+  return metrics;
 }

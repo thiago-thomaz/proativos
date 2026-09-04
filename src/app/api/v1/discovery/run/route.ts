@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runCompanyDiscovery } from "@/services/discovery-engine";
 import { validateN8nRequest } from "@/services/n8n-security";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:discovery:run");
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,6 +32,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (!authResult.valid) {
+        apiLogger.warn("DISCOVERY_AUTH_FAILED", { error: authResult.errorMessage });
         return NextResponse.json(
           { error: "Acesso não autorizado", detail: authResult.errorMessage },
           { status: 401 }
@@ -38,6 +42,13 @@ export async function POST(req: NextRequest) {
 
     const { campaignId, organizationId, limit, executionId, resumeFromCheckpoint } = body;
 
+    apiLogger.info("DISCOVERY_RUN_REQUEST", {
+      campaignId,
+      limit,
+      executionId,
+      resumeFromCheckpoint,
+    }, { organizationId });
+
     const result = await runCompanyDiscovery({
       campaignId,
       organizationId,
@@ -46,11 +57,18 @@ export async function POST(req: NextRequest) {
       resumeFromCheckpoint,
     });
 
+    apiLogger.info("DISCOVERY_RUN_SUCCESS", {
+      executionId: result.executionId,
+      discovered: result.companiesDiscovered,
+      leadsCreated: result.leadsCreated,
+    }, { organizationId });
+
     return NextResponse.json({
       success: true,
       result,
     });
   } catch (error: any) {
+    apiLogger.error("DISCOVERY_RUN_ERROR", error);
     return NextResponse.json(
       { error: "Falha ao executar descoberta de empresas", detail: error.message },
       { status: 500 }

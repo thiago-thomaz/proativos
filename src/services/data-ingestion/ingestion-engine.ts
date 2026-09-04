@@ -11,6 +11,9 @@ import {
 } from "./normalizer";
 import { evaluateCompanyAgainstICP } from "@/services/icp-engine";
 import { ICPStructuredDefinition } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const ingestionLogger = new AppLogger("ingestion");
 
 export interface IngestionOptions {
   providerName: string;
@@ -45,6 +48,14 @@ export async function processCompanyBatch(
   const provider = options.providerName || "RECEITA_FEDERAL";
   const mode = options.mode || "INCREMENTAL";
   const isDryRun = Boolean(options.dryRun);
+
+  ingestionLogger.info("BATCH_STARTED", {
+    provider,
+    mode,
+    isDryRun,
+    recordsCount: rawRecords.length,
+    checkpoint: options.checkpoint,
+  });
 
   // 1. Criar IngestionJob para rastreabilidade e data lineage
   let job: any = null;
@@ -349,6 +360,18 @@ export async function processCompanyBatch(
     });
   }
 
+  const durationMs = Date.now() - startTime;
+  ingestionLogger.info("BATCH_COMPLETED", {
+    jobId: job ? job.id : "dry-run-job",
+    status: isDryRun ? "SIMULATION" : recordsFailed > 0 && recordsCreated === 0 && recordsUpdated === 0 ? "FAILED" : "COMPLETED",
+    recordsRead: rawRecords.length,
+    recordsCreated,
+    recordsUpdated,
+    recordsSkipped,
+    recordsFailed,
+    leadsCreated,
+  }, undefined, durationMs);
+
   return {
     jobId: job ? job.id : "dry-run-job",
     status: isDryRun ? "SIMULATION" : recordsFailed > 0 && recordsCreated === 0 && recordsUpdated === 0 ? "FAILED" : "COMPLETED",
@@ -359,6 +382,6 @@ export async function processCompanyBatch(
     recordsFailed,
     leadsCreated,
     errors,
-    durationMs: Date.now() - startTime,
+    durationMs,
   };
 }

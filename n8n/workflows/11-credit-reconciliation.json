@@ -1,0 +1,61 @@
+{
+  "name": "PLE - Credit Balance Reconciliation & Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 1 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Nightly Reconciliation (01:00 BRT)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.PLE_API_BASE_URL }}/credits/reconcile",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.PLE_API_KEY }}"
+            },
+            {
+              "name": "X-Timestamp",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        }
+      },
+      "name": "Audit & Reconcile Tenant Credits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Nightly Reconciliation (01:00 BRT)": {
+      "main": [
+        [
+          {
+            "node": "Audit & Reconcile Tenant Credits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

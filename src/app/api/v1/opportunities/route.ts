@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
+
+const apiLogger = new AppLogger("api:opportunities");
 
 /**
  * GET /api/v1/opportunities
@@ -44,6 +47,13 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    apiLogger.debug("OPPORTUNITIES_LISTED", {
+      total,
+      count: opportunities.length,
+      page,
+      priority,
+    }, { organizationId });
+
     return NextResponse.json({
       success: true,
       total,
@@ -57,6 +67,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error: any) {
+    apiLogger.error("OPPORTUNITIES_FETCH_ERROR", error);
     return NextResponse.json(
       { success: false, error: error.message || "Erro ao consultar oportunidades" },
       { status: 500 }

@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:dashboard:overview");
 
 export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser(req);
     if (!user) {
+      apiLogger.warn("Acesso não autorizado ao dashboard overview");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const orgId = user.organizationId;
+    apiLogger.info("Carregando overview do dashboard", { userId: user.id, orgId });
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -105,6 +110,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    apiLogger.info("Dashboard overview carregado com sucesso", {
+      orgId,
+      totalCompanies,
+      totalLeads,
+      qualifiedLeads,
+      activeCampaignsCount: activeCampaigns.length,
+    });
+
     return NextResponse.json({
       success: true,
       metrics: {
@@ -130,6 +143,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
+    apiLogger.error("Erro ao carregar dados do dashboard", { error: String(error) });
     return NextResponse.json(
       { error: "Erro ao carregar dados do dashboard: " + String(error) },
       { status: 500 }

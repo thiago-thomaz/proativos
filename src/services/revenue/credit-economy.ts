@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const creditLogger = new AppLogger("credit-economy");
 
 export const OPERATION_CREDIT_COSTS: Record<string, number> = {
   COMPANY_DISCOVERY: 1, // Por lote de 10
@@ -76,6 +79,14 @@ export async function reserveCredits(params: ReserveCreditsParams) {
     }),
   ]);
 
+  creditLogger.info("CREDITS_RESERVED", {
+    organizationId,
+    operation,
+    amount,
+    correlationId,
+    reservationId: reservation.id,
+  }, { organizationId });
+
   return {
     success: true,
     reservationId: reservation.id,
@@ -121,6 +132,13 @@ export async function commitCredits(correlationId: string, description?: string)
     }),
   ]);
 
+  creditLogger.info("CREDITS_COMMITTED", {
+    accountId: reservation.accountId,
+    amount: reservation.amount,
+    correlationId,
+    remainingBalance: updatedAccount.balance,
+  });
+
   return {
     success: true,
     debitedAmount: reservation.amount,
@@ -161,6 +179,13 @@ export async function refundReservedCredits(correlationId: string, reason?: stri
       },
     }),
   ]);
+
+  creditLogger.info("CREDITS_REFUNDED", {
+    accountId: reservation.accountId,
+    amount: reservation.amount,
+    correlationId,
+    reason,
+  });
 
   return {
     success: true,

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isGlobalKillSwitchActive } from "@/services/outreach-eligibility";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:admin:overview");
 
 export async function GET(req: NextRequest) {
   try {
+    apiLogger.info("Gerando overview administrativo global");
     const [
       totalCompanies,
       totalLeads,
@@ -32,6 +36,14 @@ export async function GET(req: NextRequest) {
       _count: { id: true },
     });
 
+    apiLogger.info("Overview administrativo consolidado", {
+      totalCompanies,
+      totalLeads,
+      totalContacts,
+      totalCampaigns,
+      dlqPendingCount,
+    });
+
     return NextResponse.json({
       success: true,
       system: {
@@ -52,6 +64,7 @@ export async function GET(req: NextRequest) {
       leadStatusSummary,
     });
   } catch (error: any) {
+    apiLogger.error("Falha ao gerar overview administrativo", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Falha ao gerar overview administrativo", detail: error.message },
       { status: 500 }

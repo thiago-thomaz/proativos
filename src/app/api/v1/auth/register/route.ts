@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, signToken } from "@/lib/auth";
 import { UserRole } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:auth:register");
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,6 +12,7 @@ export async function POST(req: NextRequest) {
     const { name, orgName, email, password } = body;
 
     if (!name || !orgName || !email || !password) {
+      apiLogger.warn("REGISTER_FAILED_MISSING_FIELDS");
       return NextResponse.json(
         { error: "Nome, nome da empresa, e-mail e senha são obrigatórios." },
         { status: 400 }
@@ -16,6 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (password.length < 6) {
+      apiLogger.warn("REGISTER_FAILED_SHORT_PASSWORD");
       return NextResponse.json(
         { error: "A senha deve conter no mínimo 6 caracteres." },
         { status: 400 }
@@ -30,6 +35,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingUser) {
+      apiLogger.warn("REGISTER_FAILED_DUPLICATE_EMAIL", { email: cleanEmail });
       return NextResponse.json(
         { error: "Já existe uma conta registrada com este e-mail." },
         { status: 409 }
@@ -120,6 +126,15 @@ export async function POST(req: NextRequest) {
 
     const token = signToken(sessionUser);
 
+    apiLogger.info("REGISTER_SUCCESS", {
+      userId: result.user.id,
+      organizationId: result.org.id,
+      email: result.user.email,
+    }, {
+      organizationId: result.org.id,
+      userId: result.user.id,
+    });
+
     const response = NextResponse.json({
       success: true,
       user: sessionUser,
@@ -137,6 +152,7 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
+    apiLogger.error("REGISTER_ERROR", error);
     return NextResponse.json(
       { error: "Erro ao registrar usuário: " + String(error.message || error) },
       { status: 500 }

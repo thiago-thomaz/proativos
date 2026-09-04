@@ -1,4 +1,7 @@
 import { ICPQualityAssessment, ICPQualityRating } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const qualityLogger = new AppLogger("icp-quality");
 
 export function assessICPQuality(
   totalUniverse: number,
@@ -51,6 +54,13 @@ export function assessICPQuality(
     rating = "Bom";
     suggestions.push("Distribuição de ICP equilibrada. Aderência satisfatória para campanhas comerciais.");
   }
+
+  qualityLogger.debug("ICP_QUALITY_ASSESSED", {
+    rating,
+    matchedRatio,
+    totalUniverse,
+    matchedCount,
+  });
 
   return {
     rating,

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateOpportunityScore } from "@/services/opportunity-intelligence";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:opportunities:simulate");
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,14 @@ export async function POST(req: NextRequest) {
       estimatedConversionRate = 0.05,
       simulatedLeadLimit = 500,
     } = body;
+    apiLogger.info("Executando simulação de oportunidades", {
+      organizationId,
+      campaignId,
+      productPrice,
+      periodicity,
+      estimatedConversionRate,
+      simulatedLeadLimit,
+    });
 
     const companies = await prisma.company.findMany({
       take: simulatedLeadLimit,
@@ -74,6 +85,13 @@ export async function POST(req: NextRequest) {
     const estimatedRevenue = estimatedDeals * productPrice;
     const estimatedMRR = periodicity === "MONTHLY" ? estimatedRevenue : Math.round(estimatedRevenue / 12);
 
+    apiLogger.info("Simulação concluída com sucesso", {
+      universeCount,
+      readyCount,
+      estimatedRevenue,
+      estimatedMRR,
+    });
+
     return NextResponse.json({
       success: true,
       simulation: {
@@ -100,6 +118,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
+    apiLogger.error("Erro ao executar simulação de oportunidades", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { success: false, error: error.message || "Erro ao executar simulação de oportunidades" },
       { status: 500 }

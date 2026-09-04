@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { RefundReason } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const refundLogger = new AppLogger("refund");
 
 export interface RequestRefundInput {
   organizationId: string;
@@ -45,6 +48,13 @@ export async function submitRefundRequest(input: RequestRefundInput) {
       creditsRefunded: ownership.creditsPaid,
     },
   });
+
+  refundLogger.info("REFUND_REQUESTED", {
+    refundRequestId: req.id,
+    leadOwnershipId: ownership.id,
+    reason: input.reason,
+    creditsRefunded: ownership.creditsPaid,
+  }, { organizationId: input.organizationId });
 
   return req;
 }
@@ -102,6 +112,13 @@ export async function processRefundDecision(params: {
       },
     });
 
+    refundLogger.info("REFUND_APPROVED", {
+      refundRequestId: req.id,
+      creditsRestored: req.creditsRefunded,
+      newBalance: account.balance,
+      reviewerId,
+    }, { organizationId: req.organizationId });
+
     return {
       status: "APPROVED",
       refundRequestId: req.id,
@@ -118,6 +135,12 @@ export async function processRefundDecision(params: {
         decisionNote: decisionNote || "Rejeitado: evidências insuficientes",
       },
     });
+
+    refundLogger.info("REFUND_REJECTED", {
+      refundRequestId: req.id,
+      reviewerId,
+      decisionNote,
+    }, { organizationId: req.organizationId });
 
     return {
       status: "REJECTED",

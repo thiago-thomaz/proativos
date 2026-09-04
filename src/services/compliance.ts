@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const complianceLogger = new AppLogger("compliance");
 
 export interface ComplianceCheckResult {
   allowed: boolean;
@@ -128,6 +131,13 @@ export async function validateOutreachCompliance(params: {
 
   const allPassed = checks.every(c => c.passed);
   const failedCheck = checks.find(c => !c.passed);
+
+  complianceLogger.info("COMPLIANCE_VALIDATED", {
+    leadId: params.leadId,
+    channel: params.channel,
+    allowed: allPassed,
+    blockedReason: failedCheck ? `${failedCheck.checkName}: ${failedCheck.reason}` : undefined,
+  }, { organizationId: params.organizationId });
 
   return {
     allowed: allPassed,

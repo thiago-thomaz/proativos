@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const costLogger = new AppLogger("cost-controller");
 
 export interface ProviderCostMatrix {
   companyDiscovery: number;
@@ -49,6 +52,11 @@ export async function reserveCredits(
   });
 
   if (!account || account.balance < amount) {
+    costLogger.warn("INSUFFICIENT_CREDITS", {
+      organizationId,
+      available: account?.balance || 0,
+      required: amount,
+    }, { organizationId });
     throw new Error(
       `Saldo de créditos insuficiente. Disponível: ${account?.balance || 0} | Necessário: ${amount}.`
     );
@@ -71,6 +79,13 @@ export async function reserveCredits(
       description: `[RESERVA] ${description}`,
     },
   });
+
+  costLogger.info("CREDITS_RESERVED", {
+    organizationId,
+    amount,
+    reservationId: tx.id,
+    remainingBalance: updated.balance,
+  }, { organizationId });
 
   return {
     success: true,
@@ -101,6 +116,11 @@ export async function commitReservation(
       reservedBalance: { decrement: Math.min(account.reservedBalance, amount) },
     },
   });
+
+  costLogger.info("RESERVATION_COMMITTED", {
+    organizationId,
+    amount,
+  }, { organizationId });
 
   return { success: true };
 }
@@ -138,6 +158,13 @@ export async function refundReservation(
       description: `[REEMBOLSO] ${reason}`,
     },
   });
+
+  costLogger.info("RESERVATION_REFUNDED", {
+    organizationId,
+    amount,
+    reason,
+    newBalance: updated.balance,
+  }, { organizationId });
 
   return {
     success: true,

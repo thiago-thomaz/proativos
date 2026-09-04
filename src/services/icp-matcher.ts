@@ -1,5 +1,8 @@
 import { ICPFilterConfig, ScoreCalculationResult, MatchReasonItem } from "@/lib/types";
 import { resolveOpeningDateRange, formatSaoPauloDate } from "@/lib/date-utils";
+import { AppLogger } from "@/lib/logger";
+
+const matcherLogger = new AppLogger("icp-matcher");
 
 interface CompanyMatchInput {
   cnpj: string;
@@ -291,6 +294,12 @@ export function calculateICPScore(
       detail: "Sem e-mail cadastral prévio.",
     });
   }
+
+  matcherLogger.debug("ICP_MATCH_EVALUATED", {
+    cnpj: company.cnpj,
+    score: totalScore,
+    isMatch: totalScore >= minThreshold && isWithinDateRange,
+  });
 
   return {
     score: totalScore,

@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { evaluateCompanyAgainstICP } from "@/services/icp-engine";
 import { assessICPQuality } from "@/services/icp-quality";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:campaigns:preview");
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    apiLogger.info("Gerando preview de campanha", { campaignId: params.id });
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
     });
 
     if (!campaign) {
+      apiLogger.warn("Campanha não encontrada para preview", { campaignId: params.id });
       return NextResponse.json({ error: "Campanha não encontrada" }, { status: 404 });
     }
 
@@ -88,6 +93,13 @@ export async function GET(
 
     const quality = assessICPQuality(companies.length, matchesCount, distribution);
 
+    apiLogger.info("Preview de campanha gerado", {
+      campaignId: campaign.id,
+      universe: companies.length,
+      matchesCount,
+      rejectsCount,
+    });
+
     return NextResponse.json({
       success: true,
       campaignId: campaign.id,
@@ -100,6 +112,7 @@ export async function GET(
       sampleLeads: samples,
     });
   } catch (error) {
+    apiLogger.error("Falha ao gerar preview da campanha", { error: String(error) });
     return NextResponse.json(
       { error: "Falha ao gerar preview da campanha", details: String(error) },
       { status: 500 }

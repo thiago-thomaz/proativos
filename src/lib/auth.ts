@@ -3,7 +3,9 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { SessionUser, UserRole } from "./types";
+import { AppLogger } from "./logger";
 
+const authLogger = new AppLogger("auth");
 const JWT_SECRET = process.env.JWT_SECRET || "ple_fallback_jwt_secret_dev_398239";
 
 export async function hashPassword(password: string): Promise<string> {
@@ -15,13 +17,16 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function signToken(payload: SessionUser): string {
+  authLogger.debug("TOKEN_SIGNED", { userId: payload.id, organizationId: payload.organizationId, role: payload.role });
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
 export function verifyToken(token: string): SessionUser | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as SessionUser;
-  } catch {
+    const payload = jwt.verify(token, JWT_SECRET) as SessionUser;
+    return payload;
+  } catch (err) {
+    authLogger.debug("TOKEN_VERIFY_FAILED", { error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -31,13 +36,21 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
   const authHeader = req.headers.get("authorization");
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
-    return verifyToken(token);
+    const user = verifyToken(token);
+    if (user) {
+      authLogger.debug("SESSION_RESOLVED_BEARER", { userId: user.id, organizationId: user.organizationId });
+      return user;
+    }
   }
 
   // 2. Check Cookie (auth_token)
   const tokenCookie = req.cookies.get("auth_token");
   if (tokenCookie?.value) {
-    return verifyToken(tokenCookie.value);
+    const user = verifyToken(tokenCookie.value);
+    if (user) {
+      authLogger.debug("SESSION_RESOLVED_COOKIE", { userId: user.id, organizationId: user.organizationId });
+      return user;
+    }
   }
 
   // 3. Fallback: If in dev and no session, load default demo owner
@@ -46,6 +59,7 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
       include: { organization: true },
     });
     if (defaultUser) {
+      authLogger.debug("SESSION_RESOLVED_DEV_FALLBACK", { userId: defaultUser.id, organizationId: defaultUser.organizationId });
       return {
         id: defaultUser.id,
         name: defaultUser.name,
@@ -69,5 +83,9 @@ export function hasPermission(userRole: UserRole, requiredRole: UserRole): boole
     OPERATOR: 1,
   };
 
-  return (roleHierarchy[userRole] || 0) >= (roleHierarchy[requiredRole] || 0);
+  const allowed = (roleHierarchy[userRole] || 0) >= (roleHierarchy[requiredRole] || 0);
+  if (!allowed) {
+    authLogger.warn("PERMISSION_DENIED", { userRole, requiredRole });
+  }
+  return allowed;
 }

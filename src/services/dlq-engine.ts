@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const dlqLogger = new AppLogger("dlq");
 
 export interface PushToDlqParams {
   queueType: "DISCOVERY" | "INGESTION" | "ENRICHMENT" | "OUTREACH" | "INBOUND" | "WEBHOOK";
@@ -35,6 +38,13 @@ export async function pushToDeadLetterQueue(params: PushToDlqParams) {
       status: "PENDING",
     },
   });
+
+  dlqLogger.warn("DLQ_MESSAGE_ENQUEUED", {
+    dlqId: dlqRecord.id,
+    queueType: params.queueType,
+    errorMessage: params.errorMessage,
+    provider: params.provider,
+  }, { organizationId: params.organizationId });
 
   return dlqRecord;
 }
@@ -83,6 +93,13 @@ export async function retryDeadLetterMessage(id: string) {
     },
   });
 
+  dlqLogger.info("DLQ_MESSAGE_RETRIED", {
+    dlqId: id,
+    retryCount: nextRetryCount,
+    isExhausted,
+    status: updated.status,
+  }, { organizationId: msg.organizationId });
+
   return {
     success: true,
     message: updated,
@@ -94,21 +111,35 @@ export async function retryDeadLetterMessage(id: string) {
  * Marca uma mensagem da DLQ como resolvida
  */
 export async function resolveDeadLetterMessage(id: string, notes?: string) {
-  return prisma.deadLetterMessage.update({
+  const msg = await prisma.deadLetterMessage.update({
     where: { id },
     data: {
       status: "RESOLVED",
-      errorMessage: notes ? `${notes} (Resolvido manualmente)` : undefined,
     },
   });
+
+  dlqLogger.info("DLQ_MESSAGE_RESOLVED", {
+    dlqId: id,
+    notes,
+  }, { organizationId: msg.organizationId });
+
+  return msg;
 }
 
 /**
  * Marca uma mensagem da DLQ como ignorada
  */
 export async function ignoreDeadLetterMessage(id: string) {
-  return prisma.deadLetterMessage.update({
+  const msg = await prisma.deadLetterMessage.update({
     where: { id },
-    data: { status: "IGNORED" },
+    data: {
+      status: "IGNORED",
+    },
   });
+
+  dlqLogger.info("DLQ_MESSAGE_IGNORED", {
+    dlqId: id,
+  }, { organizationId: msg.organizationId });
+
+  return msg;
 }

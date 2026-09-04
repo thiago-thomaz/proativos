@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MockSandboxProvider } from "@/services/data-providers/mock-sandbox-provider";
 import { processCompanyBatch } from "@/services/data-ingestion/ingestion-engine";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:admin:data-engine");
 
 export async function GET(req: NextRequest) {
   try {
+    apiLogger.info("Buscando métricas e histórico de ingestão do data-engine");
     const jobs = await prisma.ingestionJob.findMany({
       take: 20,
       orderBy: { startedAt: "desc" },
@@ -62,6 +66,13 @@ export async function GET(req: NextRequest) {
       where: { emailStatus: { in: ["VERIFIED", "FORMAT_VALID"] } },
     });
 
+    apiLogger.info("Métricas de data-engine recuperadas com sucesso", {
+      totalCompanies,
+      companiesToday,
+      totalContacts,
+      completedEnrichments,
+    });
+
     return NextResponse.json({
       success: true,
       metrics: {
@@ -103,6 +114,7 @@ export async function GET(req: NextRequest) {
       recentEnrichmentJobs: enrichmentJobs,
     });
   } catch (error) {
+    apiLogger.error("Falha ao buscar métricas de ingestão", { error: String(error) });
     return NextResponse.json(
       { error: "Falha ao buscar métricas de ingestão", details: String(error) },
       { status: 500 }
@@ -114,6 +126,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { provider = "MOCK_SANDBOX", mode = "INCREMENTAL", limit = 100, dryRun = false } = body;
+    apiLogger.info("Executando job de ingestão manual", { provider, mode, limit, dryRun });
 
     let records: any[] = [];
 
@@ -131,11 +144,14 @@ export async function POST(req: NextRequest) {
       dryRun,
     });
 
+    apiLogger.info("Job de ingestão concluído", { provider, recordsRead: summary.recordsRead, recordsCreated: summary.recordsCreated, recordsFailed: summary.recordsFailed });
+
     return NextResponse.json({
       success: true,
       summary,
     });
   } catch (error) {
+    apiLogger.error("Falha ao executar job de ingestão", { error: String(error) });
     return NextResponse.json(
       { error: "Falha ao executar job de ingestão", details: String(error) },
       { status: 500 }

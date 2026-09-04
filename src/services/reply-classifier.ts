@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { ReplyIntent } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const replyLogger = new AppLogger("reply-classifier");
 
 /**
  * Classificador de Intenção de Resposta de Inbound (Fase 5)
@@ -184,6 +187,13 @@ export async function handleInboundMessage(payload: {
       }
     }
   }
+
+  replyLogger.info("INBOUND_REPLY_PROCESSED", {
+    inboundId: inbound.id,
+    intent,
+    leadId: payload.leadId || null,
+    channel: payload.channel,
+  }, { organizationId: payload.organizationId });
 
   return {
     success: true,

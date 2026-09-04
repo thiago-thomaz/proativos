@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { CrmStage } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const crmLogger = new AppLogger("crm");
 
 export const STAGE_PROBABILITIES: Record<CrmStage, number> = {
   NEW: 10,
@@ -70,6 +73,13 @@ export async function createDealFromLead(input: CreateDealInput) {
     },
   });
 
+  crmLogger.info("DEAL_CREATED", {
+    dealId: deal.id,
+    leadId: lead.id,
+    stage,
+    expectedValue,
+  }, { organizationId: input.organizationId });
+
   return deal;
 }
 
@@ -134,6 +144,14 @@ export async function updateDealStage(params: {
       actorId: actorId || null,
     },
   });
+
+  crmLogger.info("DEAL_STAGE_UPDATED", {
+    dealId,
+    fromStage,
+    toStage,
+    probability,
+    actualValue,
+  }, { organizationId: deal.organizationId });
 
   return updatedDeal;
 }

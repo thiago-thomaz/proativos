@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:opportunities:recommendations");
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get("organizationId");
+    apiLogger.info("Buscando recomendações de oportunidades", { organizationId });
 
     const whereOrg = organizationId ? { organizationId } : {};
 
@@ -59,6 +63,12 @@ export async function GET(req: NextRequest) {
 
     const potentialMRR = veryHighList.length * 1500;
 
+    apiLogger.info("Recomendações processadas", {
+      veryHighCount: veryHighList.length,
+      readyCount: readyList.length,
+      enrichedCount: enrichedList.length,
+    });
+
     return NextResponse.json({
       success: true,
       recommendationSummary: {
@@ -75,6 +85,7 @@ export async function GET(req: NextRequest) {
       needsEnrichment: enrichedList,
     });
   } catch (error: any) {
+    apiLogger.error("Erro ao consultar recomendações", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { success: false, error: error.message || "Erro ao consultar recomendações" },
       { status: 500 }

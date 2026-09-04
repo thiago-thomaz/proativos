@@ -1,10 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { OutreachEligibilityResult } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const serviceLogger = new AppLogger("outreach-eligibility");
 
 // Estado em memória para Kill Switch Global
 let globalKillSwitchActive = false;
 
 export function setGlobalKillSwitch(active: boolean) {
+  serviceLogger.warn(`Kill Switch Global alterado para: ${active}`);
   globalKillSwitchActive = active;
 }
 
@@ -25,6 +29,7 @@ export async function checkOutreachEligibility(
   campaignId: string,
   options: EligibilityCheckOptions = {}
 ): Promise<OutreachEligibilityResult> {
+  serviceLogger.debug("Verificando elegibilidade de outreach", { leadId, campaignId, options });
   const reasons: string[] = [];
   const blockedReasons: string[] = [];
 
@@ -55,6 +60,7 @@ export async function checkOutreachEligibility(
   });
 
   if (!lead) {
+    serviceLogger.warn("Lead não encontrado na verificação de elegibilidade", { leadId });
     return {
       eligible: false,
       reasons: [],
@@ -210,6 +216,7 @@ export async function checkOutreachEligibility(
   }
 
   const eligible = blockedReasons.length === 0 && recommendedChannel !== null;
+  serviceLogger.debug("Resultado da elegibilidade", { leadId, eligible, recommendedChannel, blockedReasons });
 
   return {
     eligible,

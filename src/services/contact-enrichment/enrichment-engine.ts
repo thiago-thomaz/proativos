@@ -3,6 +3,9 @@ import { MockEnrichmentProvider } from "./mock-enrichment-provider";
 import { normalizeAndAuditContact } from "./contact-normalizer";
 import { calculateContactabilityScore } from "@/services/contactability";
 import { EnrichmentResult, EnrichedContactPayload } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const enrichmentLogger = new AppLogger("enrichment");
 
 export interface EnrichmentEngineOptions {
   providerName?: string;
@@ -43,6 +46,14 @@ export async function enrichCompanyContacts(
   });
 
   try {
+    enrichmentLogger.info("ENRICHMENT_STARTED", {
+      companyId: company.id,
+      cnpj: company.cnpj,
+      provider: providerName,
+      correlationId,
+      dryRun: Boolean(options.dryRun),
+    }, { organizationId: options.organizationId });
+
     const provider = new MockEnrichmentProvider();
     const result = await provider.enrichCompany({
       companyId: company.id,
@@ -124,21 +135,21 @@ export async function enrichCompanyContacts(
           });
         }
       }
-
-      // Atualizar IngestionJob
-      await prisma.enrichmentJob.update({
-        where: { id: job.id },
-        data: {
-          status: "COMPLETED",
-          fieldsFound: JSON.stringify(result.fieldsFound),
-          confidence: result.overallConfidence,
-          creditsUsed: result.creditsUsed,
-          finishedAt: new Date(),
-        },
-      });
     }
 
-    // Buscar lista atualizada de contatos para cálculo de Contactability
+    // 4. Atualizar EnrichmentJob
+    await prisma.enrichmentJob.update({
+      where: { id: job.id },
+      data: {
+        status: options.dryRun ? "SIMULATION" : "COMPLETED",
+        fieldsFound: JSON.stringify(result.fieldsFound),
+        confidence: result.overallConfidence,
+        creditsUsed: result.creditsUsed,
+        finishedAt: new Date(),
+      },
+    });
+
+    // 5. Recalcular Score de Contactabilidade dos Leads vinculados a esta Company
     const updatedContacts = await prisma.contact.findMany({
       where: { companyId: company.id },
     });
@@ -166,12 +177,24 @@ export async function enrichCompanyContacts(
       contactability = calculateContactabilityScore(updatedContacts, 70);
     }
 
+    enrichmentLogger.info("ENRICHMENT_COMPLETED", {
+      companyId: company.id,
+      contactsFound: result.contacts.length,
+      contactabilityScore: contactability?.contactabilityScore,
+      priorityScore: contactability?.priorityScore,
+    }, { organizationId: options.organizationId });
+
     return {
       success: true,
       result,
       contactability,
     };
   } catch (err: any) {
+    enrichmentLogger.error("ENRICHMENT_FAILED", err, {
+      companyId: company.id,
+      provider: providerName,
+    }, { organizationId: options.organizationId });
+
     await prisma.enrichmentJob.update({
       where: { id: job.id },
       data: {
@@ -251,6 +274,12 @@ export async function suppressContact(
       update: { reason },
     });
   }
+
+  enrichmentLogger.info("CONTACT_SUPPRESSED", {
+    contactId: contact.id,
+    companyId: contact.companyId,
+    reason,
+  }, { organizationId: organizationId || contact.organizationId });
 
   return { success: true, contactId: contact.id, status: "SUPPRESSED" };
 }

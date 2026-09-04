@@ -5,6 +5,9 @@ import {
   ProviderHealth,
   RawCompanyRecord,
 } from "./provider-interface";
+import { AppLogger } from "@/lib/logger";
+
+const providerLogger = new AppLogger("mock-sandbox-provider");
 
 /**
  * Gerador determinístico de CNPJ válido com cálculo oficial de dígitos verificadores
@@ -38,12 +41,14 @@ export class MockSandboxProvider implements CompanySourceProvider {
   private shouldFailNext = 0;
 
   setSimulatedFailures(count: number) {
+    providerLogger.warn(`Simulação de falhas configurada: ${count}`);
     this.shouldFailNext = count;
     this.failureSimulationCount = 0;
   }
 
   async healthCheck(): Promise<ProviderHealth> {
     const start = Date.now();
+    providerLogger.debug("Health check executado no provider sandbox");
     return {
       status: "HEALTHY",
       latencyMs: Date.now() - start + 5,
@@ -53,8 +58,10 @@ export class MockSandboxProvider implements CompanySourceProvider {
   }
 
   async discoverCompanies(query: DiscoveryQuery): Promise<ProviderDiscoveryResult> {
+    providerLogger.info("Descobrindo empresas via sandbox", { query });
     if (this.shouldFailNext > 0 && this.failureSimulationCount < this.shouldFailNext) {
       this.failureSimulationCount++;
+      providerLogger.warn(`Erro temporário simulado: ${this.failureSimulationCount}/${this.shouldFailNext}`);
       throw new Error(`[MOCK_SANDBOX] Erro temporário de rede simulado (${this.failureSimulationCount}/${this.shouldFailNext})`);
     }
 
@@ -108,6 +115,7 @@ export class MockSandboxProvider implements CompanySourceProvider {
     }
 
     const nextCursor = String(startIndex + limit);
+    providerLogger.info("Empresas descobertas no sandbox", { count: records.length, nextCursor });
 
     return {
       records,
@@ -118,6 +126,7 @@ export class MockSandboxProvider implements CompanySourceProvider {
   }
 
   async getCompanyByCnpj(cnpj: string): Promise<RawCompanyRecord | null> {
+    providerLogger.debug("Buscando empresa por CNPJ no sandbox", { cnpj });
     return {
       cnpj,
       razaoSocial: "Empresa Consultada Sob Demanda Ltda",

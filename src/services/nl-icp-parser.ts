@@ -1,4 +1,7 @@
 import { NLPInterpretationResult, ICPStructuredDefinition, OpeningDatePreset } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const parserLogger = new AppLogger("nl-icp-parser");
 
 interface IndustryMapping {
   terms: string[];
@@ -268,6 +271,13 @@ export function interpretNaturalLanguageICP(prompt: string): NLPInterpretationRe
     },
     minScore: 70,
   };
+
+  parserLogger.info("NL_ICP_PARSED", {
+    confidenceScore,
+    isAmbiguous,
+    matchedSegment: matchedMapping?.label || "ALL",
+    locationsCount: identifiedUfs.length + identifiedCities.length,
+  });
 
   return {
     structuredIcp,

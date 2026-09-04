@@ -1,0 +1,61 @@
+{
+  "name": "PLE - Provider Health Check & Latency Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Every 5 min Health Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.PLE_API_BASE_URL }}/admin/health",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.PLE_API_KEY }}"
+            },
+            {
+              "name": "X-Timestamp",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        }
+      },
+      "name": "Check Providers Latency & Failover",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Every 5 min Health Check": {
+      "main": [
+        [
+          {
+            "node": "Check Providers Latency & Failover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

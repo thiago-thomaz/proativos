@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { checkOutreachEligibility } from "./outreach-eligibility";
 import { estimateOperationCost } from "./cost-controller";
+import { AppLogger } from "@/lib/logger";
+
+const serviceLogger = new AppLogger("dry-run");
 
 export interface DryRunSimulationResult {
   mode: "DRY_RUN";
@@ -25,6 +28,7 @@ export interface DryRunSimulationResult {
 export async function executeDryRunSimulation(
   campaignId: string
 ): Promise<DryRunSimulationResult> {
+  serviceLogger.info("Iniciando simulação Dry Run para campanha", { campaignId });
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: {
@@ -40,6 +44,7 @@ export async function executeDryRunSimulation(
   });
 
   if (!campaign) {
+    serviceLogger.error(`Campanha '${campaignId}' não encontrada para Dry Run`);
     throw new Error(`Campanha '${campaignId}' não encontrada.`);
   }
 
@@ -91,6 +96,13 @@ export async function executeDryRunSimulation(
         estimatedCostUSD,
       }),
     },
+  });
+
+  serviceLogger.info("Simulação Dry Run finalizada com sucesso", {
+    campaignId: campaign.id,
+    evaluated: campaign.leads.length,
+    wouldSend,
+    wouldBlock,
   });
 
   return {

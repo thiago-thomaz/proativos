@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { AttributionTouchType } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const attrLogger = new AppLogger("attribution");
 
 export interface AttributeRevenueParams {
   organizationId: string;
@@ -53,6 +56,11 @@ export async function attributeDealRevenue(params: AttributeRevenueParams) {
       },
     });
     attributions.push(directAttr);
+    attrLogger.info("REVENUE_ATTRIBUTED_DIRECT", {
+      dealId: deal.id,
+      totalRevenue,
+      model,
+    }, { organizationId });
     return { dealId, totalRevenue, attributions };
   }
 
@@ -110,6 +118,13 @@ export async function attributeDealRevenue(params: AttributeRevenueParams) {
       attributions.push(attr);
     }
   }
+
+  attrLogger.info("REVENUE_ATTRIBUTED", {
+    dealId: deal.id,
+    totalRevenue,
+    model,
+    touchesCount: messages.length,
+  }, { organizationId });
 
   return {
     dealId,

@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getNextCadenceStep } from "@/services/cadence-engine";
 import { sendOutreachMessage } from "@/services/outreach-engine";
 import { validateN8nRequest } from "@/services/n8n-security";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:cadence:process");
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +22,13 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
+    apiLogger.info("Processando lote de cadências", {
+      campaignId: body.campaignId,
+      organizationId: body.organizationId,
+      limit: body.limit,
+      simulationMode: body.simulationMode,
+    });
+
     if (apiKeyHeader) {
       const authResult = await validateN8nRequest({
         apiKeyHeader,
@@ -30,6 +40,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (!authResult.valid) {
+        apiLogger.warn("Falha na autenticação N8N para processamento de cadência", { error: authResult.errorMessage });
         return NextResponse.json(
           { error: "Acesso não autorizado", detail: authResult.errorMessage },
           { status: 401 }
@@ -75,6 +86,7 @@ export async function POST(req: NextRequest) {
             dispatch,
           });
         } catch (err: any) {
+          apiLogger.warn("Erro ao disparar mensagem de cadência para lead", { leadId: lead.id, error: err.message });
           results.push({
             leadId: lead.id,
             status: "BLOCKED",
@@ -91,13 +103,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const sentCount = results.filter((r) => r.status === "SENT").length;
+    apiLogger.info("Lote de cadências finalizado", {
+      processed: leads.length,
+      dispatched: sentCount,
+    });
+
     return NextResponse.json({
       success: true,
       processed: leads.length,
-      dispatched: results.filter((r) => r.status === "SENT").length,
+      dispatched: sentCount,
       results,
     });
   } catch (error: any) {
+    apiLogger.error("Falha ao processar lote de cadências", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Falha ao processar lote de cadências", detail: error.message },
       { status: 500 }

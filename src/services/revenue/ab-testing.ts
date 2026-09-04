@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { ExperimentType } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const abLogger = new AppLogger("ab-testing");
 
 export interface CreateExperimentInput {
   organizationId: string;
@@ -39,6 +42,13 @@ export async function createAbExperiment(input: CreateExperimentInput) {
     },
     include: { variants: true },
   });
+
+  abLogger.info("AB_EXPERIMENT_CREATED", {
+    experimentId: experiment.id,
+    campaignId: input.campaignId,
+    type: input.type,
+    variantsCount: input.variants.length,
+  }, { organizationId: input.organizationId });
 
   return experiment;
 }
@@ -126,6 +136,13 @@ export async function evaluateExperimentWinner(experimentId: string) {
         winnerVariantId: best.id,
       },
     });
+
+    abLogger.info("AB_EXPERIMENT_WINNER_DECLARED", {
+      experimentId,
+      winnerVariantId: best.id,
+      winnerName: best.name,
+      differencePercentage: diff,
+    }, { organizationId: experiment.organizationId });
 
     return {
       status: "WINNER_DECLARED",

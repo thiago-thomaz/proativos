@@ -1,4 +1,7 @@
 import { formatSaoPauloDate } from "@/lib/date-utils";
+import { AppLogger } from "@/lib/logger";
+
+const personalizerLogger = new AppLogger("personalizer");
 
 export interface PersonalizationContext {
   company: {
@@ -71,6 +74,10 @@ export function personalizeMessage(
     } else {
       missingVariables.push(tag);
     }
+  }
+
+  if (missingVariables.length > 0) {
+    personalizerLogger.debug("MISSING_PERSONALIZATION_VARIABLES", { missingVariables });
   }
 
   return {

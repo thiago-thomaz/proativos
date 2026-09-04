@@ -1,0 +1,77 @@
+{
+  "name": "PLE - Inbound Message Router & Reply Classifier",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inbound-webhook",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.PLE_API_BASE_URL }}/webhooks/inbound",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.PLE_API_KEY }}"
+            },
+            {
+              "name": "X-Timestamp",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "channel",
+              "value": "={{ $json.body.channel || 'WHATSAPP' }}"
+            },
+            {
+              "name": "from",
+              "value": "={{ $json.body.from }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.body.message || $json.body.text }}"
+            },
+            {
+              "name": "externalId",
+              "value": "={{ $json.body.id }}"
+            }
+          ]
+        }
+      },
+      "name": "Process Inbound & Classify Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process Inbound & Classify Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

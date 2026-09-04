@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { AppLogger } from "@/lib/logger";
+
+const billingLogger = new AppLogger("billing");
 
 export interface PlanDefinition {
   name: string;
@@ -143,6 +146,13 @@ export async function subscribeOrganizationToPlan(
     },
   });
 
+  billingLogger.info("ORGANIZATION_SUBSCRIBED", {
+    organizationId,
+    planSlug: plan.slug,
+    monthlyCredits: plan.monthlyCredits,
+    currentBalance: creditAccount.balance,
+  }, { organizationId });
+
   return { sub, plan, currentBalance: creditAccount.balance };
 }
 
@@ -168,6 +178,12 @@ export async function checkPlanLimits(
   if (features.includes(featureKey) || currentPlan?.slug === "enterprise") {
     return { allowed: true, plan: currentPlan?.slug || "starter" };
   }
+
+  billingLogger.warn("PLAN_LIMIT_BLOCKED", {
+    organizationId,
+    featureKey,
+    plan: currentPlan?.slug || "free",
+  }, { organizationId });
 
   return {
     allowed: false,

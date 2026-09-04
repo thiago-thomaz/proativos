@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:leads");
 
 export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser(req);
     if (!user) {
+      apiLogger.warn("LEADS_LIST_UNAUTHORIZED");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -30,8 +34,14 @@ export async function GET(req: NextRequest) {
       orderBy: { firstDetectedAt: "desc" },
     });
 
+    apiLogger.debug("LEADS_LISTED", { count: leads.length, campaignId, status }, {
+      organizationId: user.organizationId,
+      userId: user.id,
+    });
+
     return NextResponse.json({ success: true, count: leads.length, leads });
   } catch (error) {
+    apiLogger.error("LEADS_FETCH_ERROR", error);
     return NextResponse.json({ error: "Failed to fetch leads", details: String(error) }, { status: 500 });
   }
 }

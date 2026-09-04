@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:contacts");
 
 export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser(req);
     if (!user) {
+      apiLogger.warn("CONTACTS_GET_UNAUTHORIZED");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -42,6 +46,11 @@ export async function GET(req: NextRequest) {
       take: 100,
     });
 
+    apiLogger.debug("CONTACTS_LISTED", { count: contacts.length, isDecisionMaker }, {
+      organizationId: user.organizationId,
+      userId: user.id,
+    });
+
     return NextResponse.json({
       success: true,
       count: contacts.length,
@@ -60,6 +69,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error: any) {
+    apiLogger.error("CONTACTS_FETCH_ERROR", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

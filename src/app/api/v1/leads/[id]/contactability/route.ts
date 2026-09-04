@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateContactabilityScore } from "@/services/contactability";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:leads:contactability");
 
 export async function GET(
   req: NextRequest,
@@ -19,6 +22,7 @@ export async function GET(
     });
 
     if (!lead) {
+      apiLogger.warn("LEAD_NOT_FOUND_FOR_CONTACTABILITY", { leadId: params.id });
       return NextResponse.json(
         { error: "Lead não encontrado" },
         { status: 404 }
@@ -29,6 +33,12 @@ export async function GET(
       lead.company.contacts,
       lead.score
     );
+
+    apiLogger.debug("LEAD_CONTACTABILITY_FETCHED", {
+      leadId: lead.id,
+      contactabilityScore: contactability.contactabilityScore,
+      priorityScore: contactability.priorityScore,
+    }, { organizationId: lead.organizationId });
 
     return NextResponse.json({
       leadId: lead.id,
@@ -48,6 +58,7 @@ export async function GET(
       contacts: lead.company.contacts,
     });
   } catch (error: any) {
+    apiLogger.error("LEAD_CONTACTABILITY_ERROR", error, { leadId: params.id });
     return NextResponse.json(
       { error: "Erro ao calcular contatabilidade do lead", detail: error.message },
       { status: 500 }

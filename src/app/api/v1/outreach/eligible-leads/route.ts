@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkOutreachEligibility } from "@/services/outreach-eligibility";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:outreach:eligible-leads");
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const campaignId = searchParams.get("campaignId");
     const limit = parseInt(searchParams.get("limit") || "20");
+    apiLogger.info("Buscando leads elegíveis para outreach", { campaignId, limit });
 
     if (!campaignId) {
+      apiLogger.warn("campaignId ausente na requisição");
       return NextResponse.json(
         { error: "Parâmetro 'campaignId' é obrigatório." },
         { status: 400 }
@@ -54,6 +59,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    apiLogger.info("Busca de leads elegíveis concluída", {
+      totalChecked: leads.length,
+      totalEligible: eligibleLeads.length,
+    });
+
     return NextResponse.json({
       success: true,
       totalChecked: leads.length,
@@ -61,6 +71,7 @@ export async function GET(req: NextRequest) {
       eligibleLeads,
     });
   } catch (error: any) {
+    apiLogger.error("Falha ao buscar leads elegíveis", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { error: "Falha ao buscar leads elegíveis", detail: error.message },
       { status: 500 }

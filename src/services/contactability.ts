@@ -6,6 +6,9 @@ import {
   VerificationStatus,
   WhatsAppStatus,
 } from "@/lib/types";
+import { AppLogger } from "@/lib/logger";
+
+const contactLogger = new AppLogger("contactability");
 
 export interface ContactForScoring {
   nome: string;
@@ -218,6 +221,14 @@ export function calculateContactabilityScore(
 
   // Lead Priority Score: 60% ICP + 40% Contactability
   const priorityScore = Math.round(0.6 * icpScore + 0.4 * finalContactability);
+
+  contactLogger.debug("CONTACTABILITY_CALCULATED", {
+    contactabilityScore: finalContactability,
+    leadReadiness,
+    priorityScore,
+    contactsCount: contacts.length,
+    activeCount: activeContacts.length,
+  });
 
   return {
     contactabilityScore: finalContactability,

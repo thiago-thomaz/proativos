@@ -1,0 +1,78 @@
+{
+  "name": "PLE - Company Ingestion Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily Ingestion Schedule (07:00 BRT)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.PLE_API_BASE_URL }}/admin/data-engine",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.PLE_API_KEY }}"
+            },
+            {
+              "name": "X-Timestamp",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "INGEST_BATCH"
+            },
+            {
+              "name": "provider",
+              "value": "RECEITA_FEDERAL"
+            },
+            {
+              "name": "limit",
+              "value": 100
+            }
+          ]
+        }
+      },
+      "name": "Ingest Companies Batch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Daily Ingestion Schedule (07:00 BRT)": {
+      "main": [
+        [
+          {
+            "node": "Ingest Companies Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

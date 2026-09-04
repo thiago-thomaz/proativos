@@ -4,6 +4,9 @@ import {
   calculateOpportunityScore,
   persistOpportunityScore,
 } from "@/services/opportunity-intelligence";
+import { AppLogger } from "@/lib/logger";
+
+const apiLogger = new AppLogger("api:opportunities:recalculate");
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +18,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { organizationId, campaignId, limit = 100 } = body;
+    apiLogger.info("Recalculando oportunidades em lote", { organizationId, campaignId, limit });
 
     if (!organizationId) {
+      apiLogger.warn("organizationId ausente na requisição");
       return NextResponse.json(
         { success: false, error: "organizationId é obrigatório" },
         { status: 400 }
@@ -78,6 +83,8 @@ export async function POST(req: NextRequest) {
       processedCount++;
     }
 
+    apiLogger.info("Recálculo concluído", { organizationId, campaignId, processedCount });
+
     return NextResponse.json({
       success: true,
       processedCount,
@@ -85,6 +92,7 @@ export async function POST(req: NextRequest) {
       campaignId: campaignId || "ALL",
     });
   } catch (error: any) {
+    apiLogger.error("Erro ao recalcular oportunidades", { error: error.message, stack: error.stack });
     return NextResponse.json(
       { success: false, error: error.message || "Erro ao recalcular oportunidades" },
       { status: 500 }

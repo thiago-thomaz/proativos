@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { reserveCredits, commitCredits, refundReservedCredits } from "./credit-economy";
+import { AppLogger } from "@/lib/logger";
+
+const marketplaceLogger = new AppLogger("marketplace");
 
 export interface CreatePackageInput {
   name: string;
@@ -158,6 +161,13 @@ export async function buyMarketplacePackage(params: BuyPackageParams) {
     // 2. Commit dos créditos
     await commitCredits(correlationId, `Compra do pacote ${pkg.name} (${companies.length} leads)`);
 
+    marketplaceLogger.info("MARKETPLACE_PACKAGE_PURCHASED", {
+      packageId: pkg.id,
+      leadsDelivered: companies.length,
+      exclusive: pkg.exclusive,
+      creditsCharged: pkg.priceCredits,
+    }, { organizationId });
+
     return {
       success: true,
       packageId: pkg.id,
@@ -166,6 +176,11 @@ export async function buyMarketplacePackage(params: BuyPackageParams) {
       creditsCharged: pkg.priceCredits,
     };
   } catch (error: any) {
+    marketplaceLogger.error("MARKETPLACE_PURCHASE_FAILED", error, {
+      packageId: pkg.id,
+      correlationId,
+    }, { organizationId });
+
     await refundReservedCredits(correlationId, error.message);
     throw error;
   }
