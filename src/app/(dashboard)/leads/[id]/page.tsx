@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -33,7 +33,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [enrichSuccess, setEnrichSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLead = async () => {
+  const fetchLead = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/v1/leads/${leadId}`);
@@ -48,11 +48,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
 
   useEffect(() => {
     fetchLead();
-  }, [leadId]);
+  }, [fetchLead]);
 
   const handleEnrich = async () => {
     if (!lead?.company?.id) return;

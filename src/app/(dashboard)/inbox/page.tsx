@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Inbox,
@@ -46,7 +46,7 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("ALL");
 
-  const fetchInbox = async () => {
+  const fetchInbox = useCallback(async () => {
     setLoading(true);
     try {
       let url = "/api/v1/inbox";
@@ -64,11 +64,11 @@ export default function InboxPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeFilter]);
 
   useEffect(() => {
     fetchInbox();
-  }, [activeFilter]);
+  }, [fetchInbox]);
 
   const getIntentBadge = (intent: string) => {
     switch (intent) {

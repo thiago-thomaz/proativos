@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Building2, Search, Filter, Phone, Mail, MapPin, Calendar, RefreshCw } from "lucide-react";
 import { formatCNPJ, formatPhone } from "@/lib/utils";
 
@@ -26,7 +26,7 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState("");
   const [ufFilter, setUfFilter] = useState("TODOS");
 
-  const fetchCompanies = async () => {
+  const fetchCompanies = useCallback(async () => {
     setLoading(true);
     try {
       let url = "/api/v1/companies?limit=100";
@@ -43,14 +43,14 @@ export default function CompaniesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, ufFilter]);
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
       fetchCompanies();
     }, 300);
     return () => clearTimeout(delayDebounce);
-  }, [search, ufFilter]);
+  }, [fetchCompanies]);
 
   return (
     <div className="space-y-6">

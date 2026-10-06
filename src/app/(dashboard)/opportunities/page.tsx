@@ -78,12 +78,27 @@ export default function OpportunitiesRadarPage() {
     fetchRadarData();
   }, [selectedPriority, selectedPeriod, selectedAction]);
 
-  async function fetchRadarData() {
+  async function fetchRadarData(forceRecalculate = false) {
     setLoading(true);
     try {
+      if (forceRecalculate) {
+        await fetch("/api/v1/opportunities/calculate", { method: "POST" }).catch(() => {});
+      }
       const res = await fetch("/api/v1/opportunities/radar");
       const data = await res.json();
       if (data.success) {
+        if ((!data.topOpportunities || data.topOpportunities.length === 0) && !forceRecalculate) {
+          const calcRes = await fetch("/api/v1/opportunities/calculate", { method: "POST" }).catch(() => null);
+          if (calcRes && calcRes.ok) {
+            const reRes = await fetch("/api/v1/opportunities/radar");
+            const reData = await reRes.json();
+            if (reData.success && reData.topOpportunities && reData.topOpportunities.length > 0) {
+              setKpis(reData.kpis);
+              setOpportunities(reData.topOpportunities);
+              return;
+            }
+          }
+        }
         setKpis(data.kpis);
         setOpportunities(data.topOpportunities || []);
       }
@@ -195,7 +210,15 @@ export default function OpportunitiesRadarPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchRadarData}
+            onClick={() => fetchRadarData(true)}
+            disabled={loading}
+            className="px-4 py-2 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-rose-500/10 transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Recalcular Oportunidades
+          </button>
+          <button
+            onClick={() => fetchRadarData(false)}
             className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 rounded-xl text-xs font-medium border border-slate-700 transition-all flex items-center gap-2"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -224,7 +247,7 @@ export default function OpportunitiesRadarPage() {
             <Flame className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> Very High
           </span>
           <span className="text-2xl font-black text-rose-400 mt-2">{kpis.veryHighPriority}</span>
-          <span className="text-[11px] text-rose-300/60 mt-1">Score $\ge 90$</span>
+          <span className="text-[11px] text-rose-300/60 mt-1">Score ≥ 90</span>
         </div>
 
         <div className="bg-amber-950/20 border border-amber-800/40 rounded-2xl p-4 flex flex-col justify-between">
@@ -315,12 +338,40 @@ export default function OpportunitiesRadarPage() {
           <p className="text-sm">Carregando oportunidades do radar...</p>
         </div>
       ) : filteredOpportunities.length === 0 ? (
-        <div className="py-20 text-center bg-slate-900/40 border border-slate-800/80 rounded-3xl p-8">
-          <Flame className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-white">Nenhuma oportunidade encontrada</h3>
-          <p className="text-sm text-slate-400 max-w-md mx-auto mt-1">
-            Tente ajustar os filtros ou execute uma nova busca de empresas no módulo de Ingestão de Dados.
-          </p>
+        <div className="py-16 text-center bg-slate-900/40 border border-slate-800/80 rounded-3xl p-8 max-w-xl mx-auto space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-400">
+            <Flame className="w-7 h-7" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">Nenhuma oportunidade calculada ainda</h3>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              Execute o motor de inteligência agora para pontuar as empresas da base ou inicialize os dados demonstrativos de produção.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => fetchRadarData(true)}
+              className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Calcular Radar Agora
+            </button>
+            <button
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  await fetch("/api/v1/admin/bootstrap?force=true");
+                  await fetchRadarData(true);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="w-full sm:w-auto px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 transition-all flex items-center justify-center gap-2"
+            >
+              <Zap className="w-4 h-4 text-amber-400" />
+              Carregar Dados Demo
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

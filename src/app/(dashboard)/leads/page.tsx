@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Users2,
@@ -54,7 +54,7 @@ export default function LeadsPage() {
   const [selectedStage, setSelectedStage] = useState("ALL");
   const [search, setSearch] = useState("");
 
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
       let url = "/api/v1/leads";
@@ -71,11 +71,11 @@ export default function LeadsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedStage]);
 
   useEffect(() => {
     fetchLeads();
-  }, [selectedStage]);
+  }, [fetchLeads]);
 
   // Contagem por estágio
   const countsByStage = leads.reduce((acc: Record<string, number>, lead) => {

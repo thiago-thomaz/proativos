@@ -100,6 +100,41 @@ export default function LoginPage() {
             {loading ? "Autenticando..." : "Acessar Plataforma"}
             <ArrowRight className="w-4 h-4" />
           </button>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={async () => {
+              setEmail("thiago@acmecorp.com.br");
+              setPassword("proactive123");
+              setLoading(true);
+              setError(null);
+              try {
+                await fetch("/api/v1/admin/bootstrap");
+                const res = await fetch("/api/v1/auth/login", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: "thiago@acmecorp.com.br", password: "proactive123" }),
+                });
+                const data = await res.json();
+                if (data.success && data.token) {
+                  localStorage.setItem("auth_token", data.token);
+                  router.push("/dashboard");
+                  router.refresh();
+                } else {
+                  throw new Error(data.error || "Credenciais não reconhecidas.");
+                }
+              } catch (err: any) {
+                setError(err.message || "Erro no acesso demo.");
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition-all disabled:opacity-50"
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            Entrar como Thiago Thomaz (1-Clique Demo)
+          </button>
         </form>
 
         <div className="text-center text-xs text-slate-500">

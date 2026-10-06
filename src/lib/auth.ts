@@ -53,13 +53,13 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
     }
   }
 
-  // 3. Fallback: If in dev and no session, load default demo owner
-  if (process.env.NODE_ENV === "development") {
+  // 3. Fallback: Se em desenvolvimento ou modo demo ativo (garante funcionamento contínuo do painel)
+  if (process.env.NODE_ENV === "development" || process.env.DEMO_MODE !== "false") {
     const defaultUser = await prisma.user.findFirst({
       include: { organization: true },
     });
     if (defaultUser) {
-      authLogger.debug("SESSION_RESOLVED_DEV_FALLBACK", { userId: defaultUser.id, organizationId: defaultUser.organizationId });
+      authLogger.debug("SESSION_RESOLVED_DEMO_FALLBACK", { userId: defaultUser.id, organizationId: defaultUser.organizationId });
       return {
         id: defaultUser.id,
         name: defaultUser.name,

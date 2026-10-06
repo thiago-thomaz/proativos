@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Contact, Search, UserCheck, Shield, Phone, Mail, RefreshCw } from "lucide-react";
 import { formatCNPJ, formatPhone } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ export default function ContactsPage() {
   const [filterType, setFilterType] = useState<"ALL" | "DECISOR" | "EMPRESARIAL">("ALL");
   const [search, setSearch] = useState("");
 
-  const fetchContacts = async () => {
+  const fetchContacts = useCallback(async () => {
     setLoading(true);
     try {
       let url = "/api/v1/contacts";
@@ -43,14 +43,14 @@ export default function ContactsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, filterType]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchContacts();
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, filterType]);
+  }, [fetchContacts]);
 
   return (
     <div className="space-y-6">
