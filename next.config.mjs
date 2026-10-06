@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   experimental: {
-    // serverActions enabled by default in Next.js 14
-  }
+    instrumentationHook: true,
+  },
 };
 
 export default nextConfig;

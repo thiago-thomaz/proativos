@@ -344,9 +344,9 @@ export default function SuperAdminPage() {
         </div>
 
         <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800">
-          <span className="text-xs text-slate-400">Status dos Workflows n8n</span>
+          <span className="text-xs text-slate-400">Status dos Jobs Nativos</span>
           <div className="text-2xl font-bold text-emerald-400 mt-1">100% UP</div>
-          <div className="text-[11px] text-slate-400 mt-1">0 erros críticos</div>
+          <div className="text-[11px] text-slate-400 mt-1">26 Jobs Autônomos Ativos</div>
         </div>
       </div>
 

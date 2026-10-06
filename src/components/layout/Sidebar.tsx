@@ -44,7 +44,7 @@ const NAV_ITEMS = [
   { href: "/contacts", label: "Contatos", icon: Contact },
   { href: "/templates", label: "Templates & Copy", icon: FileText },
   { href: "/notifications", label: "Notificações", icon: Bell },
-  { href: "/integrations", label: "Integrações & n8n", icon: PlugZap },
+  { href: "/integrations", label: "Automações & Webhooks", icon: PlugZap },
   { href: "/billing", label: "Planos & Créditos", icon: CreditCard },
   { href: "/privacy", label: "Data & Privacy (LGPD)", icon: ShieldCheck },
   { href: "/settings", label: "Configurações", icon: Settings },

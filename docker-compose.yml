@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  app:
+    container_name: leads-proativos-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+      - ENABLE_INTERNAL_SCHEDULER=true
+    volumes:
+      - leads_data:/app/data
+      - sqlite_data:/app/prisma
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - leads_network
+
+volumes:
+  leads_data:
+    driver: local
+  sqlite_data:
+    driver: local
+
+networks:
+  leads_network:
+    driver: bridge

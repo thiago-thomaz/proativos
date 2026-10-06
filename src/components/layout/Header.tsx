@@ -16,7 +16,7 @@ export function Header() {
         </div>
         <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800/60 border border-slate-700/50 text-[11px] text-slate-300">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          Motor Ativo (Postgres + n8n)
+          Motor Autônomo Ativo (Zero n8n)
         </div>
       </div>
 

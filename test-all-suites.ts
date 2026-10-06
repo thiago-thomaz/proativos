@@ -15,10 +15,11 @@ const suites = [
   { name: "Fase 8 - Multi-Tenancy Security", file: "test-multitenancy-security.ts" },
   { name: "Fase 8 - E2E Core Flow", file: "test-e2e-core-flow.ts" },
   { name: "Fase 8 - API Contracts", file: "test-api-contracts.ts" },
+  { name: "Fase 9 - Automação Nativa & Scheduler (Zero n8n)", file: "test-native-automation-scheduler.ts" },
 ];
 
 console.log("================================================================================");
-console.log("🚀 EXECUTANDO SUÍTE MESTRA DE REGRESSÃO E AUDITORIA DE PRODUÇÃO (14 SUÍTES)");
+console.log("🚀 EXECUTANDO SUÍTE MESTRA DE REGRESSÃO E AUDITORIA DE PRODUÇÃO (15 SUÍTES)");
 console.log("================================================================================\n");
 
 let totalSuitesPassed = 0;

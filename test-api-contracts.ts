@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "./src/lib/prisma";
 import { signToken } from "./src/lib/auth";
 import { GET as healthRoute } from "./src/app/api/health/route";
+import { GET as rootHealthRoute } from "./src/app/health/route";
+import { GET as getSchedulerRoute, POST as postSchedulerRoute } from "./src/app/api/v1/automation/scheduler/route";
 import { GET as companiesRoute } from "./src/app/api/v1/companies/route";
 import { GET as leadsRoute } from "./src/app/api/v1/leads/route";
 import { GET as campaignsRoute } from "./src/app/api/v1/campaigns/route";
@@ -132,6 +134,36 @@ async function runApiContractTests() {
   assert(
     dashRes.status === 200 && dashJson.success === true && dashJson.metrics?.totalCompanies !== undefined,
     "CONTRATO 9: GET /api/v1/dashboard/overview retorna métricas unificadas em tempo real"
+  );
+
+  // 10. Root Health API (Coolify / Zero-Downtime Monitor)
+  const rootHealthRes = await rootHealthRoute();
+  const rootHealthJson = await rootHealthRes.json();
+  assert(
+    rootHealthRes.status === 200 && rootHealthJson.status === "healthy" && rootHealthJson.coolify === "ready",
+    "CONTRATO 10: GET /health raiz responde 200 OK para monitor de container Coolify"
+  );
+
+  // 11. Native Scheduler Status API
+  const schedReq = new NextRequest("http://localhost:3000/api/v1/automation/scheduler");
+  const schedRes = await getSchedulerRoute(schedReq);
+  const schedJson = await schedRes.json();
+  assert(
+    schedRes.status === 200 && schedJson.success === true && schedJson.status?.totalJobs === 26,
+    "CONTRATO 11: GET /api/v1/automation/scheduler retorna status dos 26 jobs nativos"
+  );
+
+  // 12. Native Scheduler Run Job Action
+  const runReq = new NextRequest("http://localhost:3000/api/v1/automation/scheduler", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "RUN_JOB", jobId: "daily-metrics" }),
+  });
+  const runRes = await postSchedulerRoute(runReq);
+  const runJson = await runRes.json();
+  assert(
+    runRes.status === 200 && runJson.success === true && runJson.result?.status === "SUCCESS",
+    "CONTRATO 12: POST /api/v1/automation/scheduler executa job sob demanda com sucesso"
   );
 
   console.log(`\n======================================================`);
